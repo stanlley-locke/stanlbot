@@ -1,0 +1,6 @@
+[
+  {"q": "What is IaaS?", "a": "Infrastructure as a Service"},
+  {"q": "Define VPC.", "a": "Virtual Private Cloud"},
+  {"q": "Which service provides object storage?", "a": "S3"},
+  {"q": "What is the default EC2 storage type?", "a": "EBS"}
+]

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+.env
+venv/
+.env.local
+
+# Runtime Data
+storage/
+*.db
+*.log
+backups/
+whatsapp_exports/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

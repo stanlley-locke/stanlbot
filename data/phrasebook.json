@@ -1,0 +1,19 @@
+{
+  "greetings": {
+    "hello": "Habari",
+    "hi": "Hujambo",
+    "good morning": "Habari ya asubuhi"
+  },
+  "acknowledgement": {
+    "ok": "Sawa",
+    "yes": "Ndio",
+    "no": "Hapana",
+    "thanks": "Asante"
+  },
+  "tech": {
+    "server": "Seva",
+    "database": "Msingi wa Data",
+    "deploy": "Peleka kwenye intaneti",
+    "backup": "Nakala ya usalama"
+  }
+}

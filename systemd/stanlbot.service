@@ -1,0 +1,29 @@
+[Unit]
+Description=StanlBot Telegram Companion
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/stanlbot
+ExecStart=/opt/stanlbot/venv/bin/python main.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+# 🔒 Security & RAM Hardening
+MemoryMax=800M
+MemorySwapMax=2G
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/opt/stanlbot/storage /opt/stanlbot/logs
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stanlbot
+
+[Install]
+WantedBy=multi-user.target

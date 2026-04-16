@@ -1,0 +1,9 @@
+{
+  "welcome": "Karibu kwenye StanlBot.",
+  "select_lang": "Tafadhali chagua lugha unayopendelea:",
+  "lang_set": "Lugha imewekwa kuwa Kiswahili.",
+  "help_intro": "Mimi ni msaidizi wako wa masomo, mapishi na teknolojia.",
+  "rate_limit": "Kiwango cha ujumbe kimevuka. Tafadhali subiri.",
+  "admin_denied": "Hakuna ruhusa. Amri hii inahitaji msimamizi.",
+  "error_safe": "Hitilafu imetokea. Tafadhali jaribu tena baadaye."
+}

@@ -1,0 +1,9 @@
+{
+  "welcome": "Bienvenue sur StanlBot.",
+  "select_lang": "Veuillez choisir votre langue préférée :",
+  "lang_set": "Langue définie sur Français.",
+  "help_intro": "Je suis votre compagnon académique, culinaire et technique.",
+  "rate_limit": "Limite de messages dépassée. Veuillez patienter.",
+  "admin_denied": "Accès refusé. Cette commande nécessite un administrateur.",
+  "error_safe": "Une erreur inattendue s'est produite. Veuillez réessayer."
+}

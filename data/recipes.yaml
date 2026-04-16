@@ -1,0 +1,31 @@
+- name: Wali na Maharage
+  lang: sw
+  ingredients:
+    - rice
+    - red beans
+    - onion
+    - tomato
+    - coconut milk
+    - cumin
+  steps: "1. Cook beans until soft. 2. Sauté onions and tomatoes. 3. Add coconut milk and spices. 4. Mix with cooked rice."
+
+- name: Pilau
+  lang: sw
+  ingredients:
+    - basmati rice
+    - beef
+    - onion
+    - garlic
+    - pilau masala
+    - ghee
+  steps: "1. Marinate beef with spices. 2. Fry onions until golden. 3. Brown beef and add water. 4. Add rice, cover and simmer."
+
+- name: Ugali and Sukuma
+  lang: sw
+  ingredients:
+    - maize flour
+    - water
+    - collard greens
+    - onion
+    - tomato
+  steps: "1. Boil water and add maize flour gradually. 2. Stir until thick. 3. Sauté greens with onions and tomatoes."

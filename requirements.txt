@@ -1,0 +1,10 @@
+aiogram
+pydantic-settings
+aiosqlite
+APScheduler
+rapidfuzz
+boto3
+aiohttp
+python-dateutil
+pyyaml
+psutil

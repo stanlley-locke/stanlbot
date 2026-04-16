@@ -1,0 +1,6 @@
+[
+  {"q": "What does EC2 stand for?", "a": "Elastic Compute Cloud"},
+  {"q": "Which AWS service is used for serverless functions?", "a": "Lambda"},
+  {"q": "What is the free tier instance type?", "a": "t2.micro or t3.micro"},
+  {"q": "Which service manages DNS?", "a": "Route 53"}
+]
