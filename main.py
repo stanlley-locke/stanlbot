@@ -14,11 +14,11 @@ async def main():
     initialize()
     
     try:
-        from core.dispatcher import setup_dispatcher
-        dp = await setup_dispatcher()
+        from core.bot_factory import setup_dispatcher
+        dp, bot = await setup_dispatcher()
         
         logging.info("Starting long polling loop...")
-        await dp.start_polling(skip_updates=True)
+        await dp.start_polling(bot, skip_updates=True)
     except KeyboardInterrupt:
         logging.info("Shutdown requested by user.")
     except Exception as e:

@@ -1,3 +1,3 @@
-from .dispatcher import setup_dispatcher
+from .bot_factory import setup_dispatcher
 
 __all__ = ["setup_dispatcher"]

@@ -8,6 +8,7 @@ __pycache__/
 .env
 venv/
 .env.local
+.env.example
 
 # Runtime Data
 storage/
