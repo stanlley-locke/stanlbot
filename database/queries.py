@@ -26,11 +26,14 @@ async def save_note(user_id: int, content: str, tags: List[str] = None, source: 
         (user_id, content, json.dumps(tags or []), source)
     )
     # Sync to FTS table
-    note_id = (await db.execute_read("SELECT last_insert_rowid()")).fetchone()[0]
-    await db.execute_write(
-        "INSERT INTO notes_fts (id, content) VALUES (?, ?)",
-        (note_id, content)
-    )
+    cursor = await db.execute_read("SELECT last_insert_rowid()")
+    row = await cursor.fetchone()  # Await the async fetchone
+    if row:
+        note_id = row[0]
+        await db.execute_write(
+            "INSERT INTO notes_fts (id, content) VALUES (?, ?)",
+            (note_id, content)
+        )
 
 async def get_notes_paginated(user_id: int, offset: int = 0, limit: int = 10) -> List[Tuple]:
     cursor = await db.execute_read(
@@ -89,7 +92,7 @@ async def mark_reminder_sent(reminder_id: int):
     await db.execute_write("UPDATE reminders SET sent = 1 WHERE id = ?", (reminder_id,))
 
 async def index_whatsapp_messages(user_id: int, messages: List[dict], file_path: str):
-    values = [(user_id, m["sender"], m["text"], m.get("timestamp"), file_path) for m in messages]
+    values = [(user_id, m["sender"], m["content"], m.get("timestamp"), file_path) for m in messages]
     await db.execute_write(
         "INSERT INTO whatsapp_messages (user_id, sender, content, timestamp, file_path) VALUES (?, ?, ?, ?, ?)",
         values

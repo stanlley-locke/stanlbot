@@ -13,12 +13,12 @@ class ErrorHandlerMiddleware(BaseMiddleware):
         self,
         handler: Callable[[Message | CallbackQuery, Dict[str, Any]], Awaitable[Any]],
         event: Message | CallbackQuery,
-         Dict[str, Any]
+        data: Dict[str, Any]  # <--- FIXED: Added 'data:' parameter name
     ) -> Any:
         try:
             return await handler(event, data)
         except TelegramRetryAfter as e:
-            logger.warning(f"Telegram rate limit: retry after {e.retry_after}s")
+            logger.warning(f"Telegram rate limit hit: retry after {e.retry_after}s")
             await asyncio.sleep(e.retry_after)
             return await handler(event, data)
         except TelegramBadRequest as e:
