@@ -166,8 +166,16 @@ try:
             system = (
                 "You are a strict financial data parser. Identify if the text contains a financial transaction (Payment, Receipt, or Paybill). "
                 "Output RAW JSON ONLY. No markdown, no explanations.\n"
-                "Format: { \"is_transaction\": bool, \"type\": \"income\"|\"expense\", \"amount\": float, \"category\": \"food\"|\"transport\"|\"utilities\"|\"entertainment\"|\"shopping\"|\"health\"|\"education\"|\"other\", \"summary\": \"string\" }\n"
-                "If it is not a transaction, set is_transaction to false."
+                "Format: { "
+                "\"is_transaction\": bool, "
+                "\"type\": \"income\"|\"expense\", "
+                "\"amount\": float, "
+                "\"category\": \"food\"|\"transport\"|\"utilities\"|\"entertainment\"|\"shopping\"|\"health\"|\"education\"|\"other\", "
+                "\"summary\": \"string\", "
+                "\"txn_id\": \"string|null\", "
+                "\"date\": \"YYYY-MM-DD|null\" "
+                "}\n"
+                "Extract the Transaction ID (e.g., UDGNI144DB) and the date from the text if present."
             )
             
             try:

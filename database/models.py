@@ -62,7 +62,10 @@ SCHEMA_SQL = [
     """CREATE TABLE IF NOT EXISTS expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
         amount REAL NOT NULL, category TEXT NOT NULL, description TEXT,
-        expense_date DATE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        expense_date DATE NOT NULL, 
+        transaction_type TEXT DEFAULT 'expense',
+        txn_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""",
     """CREATE TABLE IF NOT EXISTS habits (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
@@ -79,11 +82,27 @@ SCHEMA_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_grocery_user ON grocery_items(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)",
-    "CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id)"
+    "CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_txn_id ON expenses(txn_id) WHERE txn_id IS NOT NULL"
 ]
 
 async def init_database():
     conn = await db.get_conn()
+    
+    # Run migrations first
+    cursor = await conn.execute("PRAGMA table_info(expenses)")
+    columns = [row[1] for row in await cursor.fetchall()]
+    
+    if "transaction_type" not in columns:
+        await conn.execute("ALTER TABLE expenses ADD COLUMN transaction_type TEXT DEFAULT 'expense'")
+        logger.info("Migrated: Added transaction_type to expenses")
+        
+    if "txn_id" not in columns:
+        await conn.execute("ALTER TABLE expenses ADD COLUMN txn_id TEXT")
+        logger.info("Migrated: Added txn_id to expenses")
+    
+    await conn.commit()
+
     for sql in SCHEMA_SQL:
         await conn.execute(sql)
     await conn.commit()

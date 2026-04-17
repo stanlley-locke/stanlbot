@@ -13,7 +13,8 @@ from aiogram.fsm.state import StatesGroup, State
 from config import settings
 from database.queries import (
     add_expense, get_expenses_by_period, get_expense_summary,
-    set_budget, get_all_budgets, get_budget_status, get_budget_alerts
+    set_budget, get_all_budgets, get_budget_status, get_budget_alerts,
+    check_duplicate_txn
 )
 from services.llm_service import llm_service
 from utils.formatters import safe_html, EMOJI
@@ -71,6 +72,10 @@ async def auto_detect_transaction(message: Message, state: FSMContext):
 
     await state.update_data(txn_data=data)
     
+    # Check for duplicates
+    if data.get("txn_id") and await check_duplicate_txn(message.from_user.id, data["txn_id"]):
+        return await message.answer(f"⚠️ <b>Transaction Detected!</b>\nBut ID <code>{data['txn_id']}</code> is already logged.")
+
     text = (
         f"💳 <b>Transaction Detected!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -99,12 +104,24 @@ async def process_txn_confirmation(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     txn = data.get("txn_data")
     
+    # Precise date from LLM or today
+    now = datetime.now().strftime('%Y-%m-%d')
+    txn_date = txn.get("date") or now
+
+    await add_expense(
+        user_id=cb.from_user.id,
+        amount=txn["amount"],
+        category=txn["category"],
+        description=txn["summary"],
+        expense_date=txn_date,
+        transaction_type=txn["type"],
+        txn_id=txn.get("txn_id")
+    )
+
     if txn["type"] == "expense":
-        await add_expense(cb.from_user.id, txn["amount"], txn["category"], txn["summary"])
         await cb.message.edit_text(f"✅ Expense of ${txn['amount']:.2f} logged!")
     else:
-        # For now, we don't handle income tracking separately, but we could
-        await cb.message.edit_text("Income detected. Tracking for income is coming soon!")
+        await cb.message.edit_text(f"💰 Income of ${txn['amount']:.2f} tracked successfully!")
     
     await state.clear()
 

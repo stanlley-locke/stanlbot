@@ -146,12 +146,27 @@ async def get_user_points(user_id: int) -> int:
     row = await cursor.fetchone()
     return row[0] if row else 0
 
-# ==================== EXPENSE TRACKING ====================
-async def add_expense(user_id: int, amount: float, category: str, description: str, expense_date: str):
+# ==================== EXPENSE & TRANSACTION TRACKING ====================
+async def add_expense(
+    user_id: int, amount: float, category: str, description: str, 
+    expense_date: str, transaction_type: str = "expense", txn_id: Optional[str] = None
+):
+    """Logs a transaction (income or expense) with optional deduplication ID."""
     await db.execute_write(
-        "INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (?, ?, ?, ?, ?)",
-        (user_id, amount, category, description, expense_date)
+        """INSERT INTO expenses (user_id, amount, category, description, expense_date, transaction_type, txn_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (user_id, amount, category, description, expense_date, transaction_type, txn_id)
     )
+
+async def check_duplicate_txn(user_id: int, txn_id: str) -> bool:
+    """Check if a transaction ID already exists for this user."""
+    if not txn_id:
+        return False
+    cursor = await db.execute_read(
+        "SELECT id FROM expenses WHERE user_id=? AND txn_id=?",
+        (user_id, txn_id)
+    )
+    return await cursor.fetchone() is not None
 
 async def get_expenses_by_period(user_id: int, start_date: str, end_date: str, category: Optional[str] = None) -> List[Tuple]:
     if category:
