@@ -38,7 +38,7 @@ async def cmd_expense(message: Message, state: FSMContext):
     if len(args) > 1 and settings.ENABLE_RAG:
         expense_data = await llm_service.parse_expense(args[1])
 
-        if expense_
+        if expense_:
             await add_expense(
                 user_id=message.from_user.id,
                 amount=expense_data['amount'],
