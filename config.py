@@ -19,6 +19,16 @@ class Settings(BaseSettings):
     MAX_MEMORY_PERCENT: int = 85
     RATE_LIMIT_MSGS: int = 10
     RATE_LIMIT_WINDOW: int = 60
+    
+    # AI & RAG Configuration
+    GEMINI_API_KEY: Optional[str] = None
+    CHROMA_DB_PATH: Path = Path("storage/chroma_db")
+    ENABLE_RAG: bool = False
+    RAG_TOP_K: int = 3
+    LLM_RATE_LIMIT_PER_MIN: int = 15  # Gemini free tier limit
+    LLM_MODEL: str = "gemini-1.5-flash"
+    ENABLE_EXPENSE_TRACKING: bool = False
+    ENABLE_VOICE_NOTES: bool = False
 
     model_config = {
         "env_file": ".env",

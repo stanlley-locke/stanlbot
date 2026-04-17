@@ -8,6 +8,11 @@ def safe_html(text: str) -> str:
         text = text.replace(f"&lt;{tag}&gt;", f"<{tag}>").replace(f"&lt;/{tag}&gt;", f"</{tag}>")
     return text
 
+def truncate_message(text: str, max_length: int = 4000) -> str:
+    """Truncate message to fit Telegram limits"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length-3] + "..."
 def truncate_message(text: str, max_len: int = 4000) -> str:
     """Truncates messages to Telegram's 4096 character limit safely."""
     if len(text) <= max_len:

@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 from database.connection import db
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +142,114 @@ async def get_user_points(user_id: int) -> int:
     cursor = await db.execute_read("SELECT points FROM users WHERE id = ?", (user_id,))
     row = await cursor.fetchone()
     return row[0] if row else 0
+
+# Expense tracking queries
+async def add_expense(
+    user_id: int, 
+    amount: float, 
+    category: str, 
+    description: str, 
+    expense_date: str
+):
+    await db.execute_write(
+        "INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (?, ?, ?, ?, ?)",
+        (user_id, amount, category, description, expense_date)
+    )
+
+async def get_expenses_by_period(
+    user_id: int, 
+    start_date: str, 
+    end_date: str,
+    category: Optional[str] = None
+) -> List[Tuple]:
+    if category:
+        cursor = await db.execute_read(
+            """SELECT id, amount, category, description, expense_date, created_at 
+               FROM expenses 
+               WHERE user_id=? AND expense_date BETWEEN ? AND ? AND category=?
+               ORDER BY expense_date DESC""",
+            (user_id, start_date, end_date, category)
+        )
+    else:
+        cursor = await db.execute_read(
+            """SELECT id, amount, category, description, expense_date, created_at 
+               FROM expenses 
+               WHERE user_id=? AND expense_date BETWEEN ? AND ?
+               ORDER BY expense_date DESC""",
+            (user_id, start_date, end_date)
+        )
+    return await cursor.fetchall()
+
+async def get_expense_summary(user_id: int, month: str) -> Dict[str, float]:
+    """Get total expenses by category for a given month (YYYY-MM)"""
+    cursor = await db.execute_read(
+        """SELECT category, SUM(amount) as total
+           FROM expenses
+           WHERE user_id=? AND strftime('%Y-%m', expense_date) = ?
+           GROUP BY category""",
+        (user_id, month)
+    )
+    rows = await cursor.fetchall()
+    return {row[0]: row[1] for row in rows}
+
+# Habit tracking queries
+async def create_habit(user_id: int, name: str, frequency: str = "daily") -> int:
+    cursor = await db.execute_write(
+        "INSERT INTO habits (user_id, name, frequency) VALUES (?, ?, ?)",
+        (user_id, name, frequency)
+    )
+    # Get the last inserted ID
+    result = await db.execute_read("SELECT last_insert_rowid()")
+    row = await result.fetchone()
+    return row[0] if row else 0
+
+async def get_user_habits(user_id: int) -> List[Tuple]:
+    cursor = await db.execute_read(
+        "SELECT * FROM habits WHERE user_id=? ORDER BY created_at",
+        (user_id,)
+    )
+    return await cursor.fetchall()
+
+async def log_habit_completion(habit_id: int, completed_date: str):
+    # Check if already logged today
+    existing = await db.execute_read(
+        "SELECT id FROM habit_logs WHERE habit_id=? AND completed_date=?",
+        (habit_id, completed_date)
+    )
+    if await existing.fetchone():
+        return False
+    
+    await db.execute_write(
+        "INSERT INTO habit_logs (habit_id, completed_date) VALUES (?, ?)",
+        (habit_id, completed_date)
+    )
+    
+    # Update streak
+    await db.execute_write(
+        """UPDATE habits 
+           SET streak = streak + 1, last_completed = ?
+           WHERE id = ?""",
+        (completed_date, habit_id)
+    )
+    return True
+
+async def reset_habit_streak(habit_id: int):
+    await db.execute_write(
+        "UPDATE habits SET streak = 0 WHERE id = ?",
+        (habit_id,)
+    )
+
+async def get_habit_stats(habit_id: int) -> Dict:
+    cursor = await db.execute_read(
+        "SELECT COUNT(*) FROM habit_logs WHERE habit_id=?",
+        (habit_id,)
+    )
+    total_completions = (await cursor.fetchone())[0]
+    
+    cursor = await db.execute_read(
+        "SELECT streak FROM habits WHERE id=?",
+        (habit_id,)
+    )
+    current_streak = (await cursor.fetchone())[0]
+    
+    return {"total_completions": total_completions, "current_streak": current_streak}

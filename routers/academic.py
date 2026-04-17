@@ -1,11 +1,10 @@
 import logging
 from datetime import datetime
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dateutil import parser as dateparser
 from database.queries import add_assignment, get_assignments, update_assignment_status, add_reminder
 
