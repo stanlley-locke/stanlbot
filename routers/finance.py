@@ -21,6 +21,17 @@ from utils.formatters import safe_html, EMOJI
 router = Router()
 logger = logging.getLogger(__name__)
 
+CATEGORIES = ["food", "transport", "utilities", "entertainment", "shopping", "health", "education", "other"]
+
+class ExpenseState(StatesGroup):
+    amount = State()
+    category = State()
+    description = State()
+    date = State()
+
+class TransactionState(StatesGroup):
+    confirm = State()
+
 @router.callback_query(F.data == "menu:finance")
 async def cb_finance_menu(cb: CallbackQuery):
     """Show the interactive Finance dashboard."""
@@ -96,18 +107,6 @@ async def process_txn_confirmation(cb: CallbackQuery, state: FSMContext):
         await cb.message.edit_text("Income detected. Tracking for income is coming soon!")
     
     await state.clear()
-logger = logging.getLogger(__name__)
-
-CATEGORIES = ["food", "transport", "utilities", "entertainment", "shopping", "health", "education", "other"]
-
-class ExpenseState(StatesGroup):
-    amount = State()
-    category = State()
-    description = State()
-    date = State()
-
-class TransactionState(StatesGroup):
-    confirm = State()
 
 @router.message(Command("expense", "spend"))
 async def cmd_expense(message: Message, state: FSMContext):
