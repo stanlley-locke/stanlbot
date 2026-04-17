@@ -39,11 +39,24 @@ try:
                         settings=ChromaSettings(anonymized_telemetry=False)
                     )
                     
-                    self._collection = self._client.get_or_create_collection(
-                        name="stanlbot_knowledge",
-                        metadata={"hnsw:space": "cosine"},
-                        embedding_function=self._embedding_fn
-                    )
+                    # Try to get or create with the new embedding function
+                    try:
+                        self._collection = self._client.get_or_create_collection(
+                            name="stanlbot_knowledge",
+                            metadata={"hnsw:space": "cosine"},
+                            embedding_function=self._embedding_fn
+                        )
+                    except Exception as config_err:
+                        if "An embedding function already exists" in str(config_err):
+                            logger.warning("Embedding mismatch detected. Recreating collection for cloud optimization...")
+                            self._client.delete_collection("stanlbot_knowledge")
+                            self._collection = self._client.create_collection(
+                                name="stanlbot_knowledge",
+                                metadata={"hnsw:space": "cosine"},
+                                embedding_function=self._embedding_fn
+                            )
+                        else:
+                            raise config_err
                     
                     self._initialized = True
                     logger.info("RAG Service initialized with Gemini Cloud Embeddings (RAM optimized)")

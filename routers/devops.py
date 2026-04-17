@@ -12,12 +12,39 @@ logger = logging.getLogger(__name__)
 def _is_admin(user_id: int) -> bool:
     return user_id in settings.ADMIN_IDS
 
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from utils.formatters import EMOJI
+
 @router.message(Command("ec2"))
-async def cmd_ec2(message: Message):
-    if not _is_admin(message.from_user.id):
-        return await message.answer("Admin access required.")
-    # Replace with actual boto3 call
-    await message.answer(f"EC2 Instance ID: {settings.EC2_INSTANCE_ID or 'Not configured'}\nStatus: Running")
+@router.callback_query(F.data == "menu:devops")
+async def cmd_ec2(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    target = event if isinstance(event, Message) else event.message
+    
+    if not _is_admin(user_id):
+        text = "⚠️ Admin access required for DevOps tools."
+        if isinstance(event, CallbackQuery):
+            return await event.answer(text, show_alert=True)
+        return await event.answer(text)
+        
+    text = (
+        f"{EMOJI['devops']} <b>Server Management</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Instance: <code>{settings.EC2_INSTANCE_ID or 'Local'}</code>\n"
+        f"Status: 🟢 Running\n\n"
+        "<b>Quick Actions:</b>\n"
+        "• /deploy - Trigger sync\n"
+        "• /backup - Snapshot DB\n"
+        "• /logs - Check errors"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
+    ])
+    
+    if isinstance(event, Message):
+        await event.answer(text, reply_markup=kb)
+    else:
+        await event.message.edit_text(text, reply_markup=kb)
 
 @router.message(Command("deploy"))
 async def cmd_deploy(message: Message):

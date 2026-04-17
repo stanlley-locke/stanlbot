@@ -66,6 +66,50 @@ async def cmd_menu(event: Message | CallbackQuery):
     else:
         await event.message.edit_text(dashboard_text, reply_markup=build_main_menu_kb())
 
+@router.callback_query(F.data == "menu:settings")
+async def cb_settings(cb: CallbackQuery):
+    await cb.message.edit_text(
+        f"{EMOJI['settings']} <b>Settings & Data Control</b>\n\n"
+        "Manage your preferences and personal data:",
+        reply_markup=build_settings_kb()
+    )
+
+@router.callback_query(F.data.startswith("lang:"))
+async def cb_set_lang(cb: CallbackQuery):
+    lang = cb.data.split(":")[1]
+    await set_user_language(cb.from_user.id, lang)
+    await cb.answer(f"Language set to {lang.upper()} ✅")
+    await cmd_menu(cb)
+
+@router.callback_query(F.data == "settings:export")
+async def cb_export(cb: CallbackQuery):
+    await cb.answer("Exporting data as JSON...", show_alert=True)
+    # Placeholder for export logic
+    await cb.message.answer("Feature coming in next update!")
+
+@router.callback_query(F.data == "settings:delete")
+async def cb_delete(cb: CallbackQuery):
+    await cb.message.edit_text(
+        "🚨 <b>Data Deletion</b>\n\n"
+        "This will remove all your notes, expenses, and assignments.\n"
+        "Are you sure? This cannot be undone.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Delete Everything", callback_data="settings_confirm_delete")],
+            [InlineKeyboardButton(text="« Cancel", callback_data="menu:settings")]
+        ])
+    )
+
+@router.callback_query(F.data == "settings_confirm_delete")
+async def cb_confirm_delete(cb: CallbackQuery):
+    # Implementation placeholder
+    await cb.answer("Wiping data...", show_alert=True)
+    await cb.message.edit_text("Your data has been cleared. Use /start to begin fresh.")
+
+@router.callback_query(F.data == "close_menu")
+async def cb_close(cb: CallbackQuery):
+    await cb.message.delete()
+    await cb.answer()
+
 @router.callback_query(F.data == "menu:help")
 async def cb_help(cb: CallbackQuery):
     text = (

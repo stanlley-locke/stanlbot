@@ -61,20 +61,37 @@ async def cmd_suggest(message: Message):
     )
 
 @router.message(Command("grocery"))
-async def cmd_grocery(message: Message):
-    args = message.text.split(maxsplit=1)
+@router.callback_query(F.data == "menu:kitchen")
+async def cmd_grocery(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    target = event if isinstance(event, Message) else event.message
+    
+    args = event.text.split(maxsplit=1) if isinstance(event, Message) else ["/grocery"]
+    
     if len(args) < 2:
-        items = await get_grocery_list(message.from_user.id)
-        if not items: return await message.answer(f"{EMOJI['success']} Grocery list is empty!")
+        items = await get_grocery_list(user_id)
+        if not items: 
+            text = f"{EMOJI['success']} Grocery list is empty!"
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="« Back", callback_data="menu:back")]
+            ])
+            if isinstance(event, CallbackQuery):
+                return await event.message.edit_text(text, reply_markup=kb)
+            return await event.answer(text, reply_markup=kb)
         
         text = f"🛒 <b>Grocery List</b>\n━━━━━━━━━━━━━━━━━━\n"
         text += "\n".join(f"• <code>{qty}x</code> {safe_html(name)}" for name, qty in items)
         
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🧠 Suggest Recipe", callback_data="kitchen:suggest")],
-            [InlineKeyboardButton(text="🧹 Clear List", callback_data="grocery:clear")]
+            [InlineKeyboardButton(text="🧹 Clear List", callback_data="grocery:clear")],
+            [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
         ])
-        return await message.answer(text, reply_markup=kb)
+        
+        if isinstance(event, Message):
+            return await event.answer(text, reply_markup=kb)
+        else:
+            return await event.message.edit_text(text, reply_markup=kb)
     
-    await add_grocery_item(message.from_user.id, args[1].strip())
-    await message.answer(f"{EMOJI['success']} Added <b>{args[1]}</b> to list.")
+    await add_grocery_item(user_id, args[1].strip())
+    await event.answer(f"{EMOJI['success']} Added <b>{args[1]}</b> to list.")

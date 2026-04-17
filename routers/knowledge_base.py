@@ -34,16 +34,23 @@ async def process_note_tags(message: Message, state: FSMContext):
     await state.clear()
 
 @router.message(Command("notes"))
-async def cmd_notes(message: Message):
-    notes = await get_notes_paginated(message.from_user.id, limit=ITEMS_PER_PAGE, offset=0)
+@router.callback_query(F.data == "menu:notes")
+async def cmd_notes(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    notes = await get_notes_paginated(user_id, limit=ITEMS_PER_PAGE, offset=0)
     total = len(notes)
-    if total == 0:
-        return await message.answer("No notes found. Use /note to save your first one.")
+    
     text = "<b>Saved Notes</b>\n" + "\n".join(
         f"{idx+1}. {safe_html(content)}\n<i>{created}</i>"
         for idx, (_, content, _, created) in enumerate(notes)
-    )
-    await message.answer(text, reply_markup=build_pagination_kb("notes", 1, max(1, total // ITEMS_PER_PAGE + 1)))
+    ) if total > 0 else "No notes found. Use /note to save your first one."
+    
+    kb = build_pagination_kb("notes", 1, max(1, total // ITEMS_PER_PAGE + 1)) if total > 0 else None
+    
+    if isinstance(event, CallbackQuery):
+        await event.message.edit_text(text, reply_markup=kb)
+    else:
+        await event.answer(text, reply_markup=kb)
 
 @router.message(Command("find"))
 async def cmd_find(message: Message):

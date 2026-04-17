@@ -84,18 +84,25 @@ async def cmd_ask(message: Message):
         await message.answer(f"{EMOJI['alert']} AI limited. Please try again soon.")
 
 @router.message(Command("chat"))
-async def cmd_chat(message: Message):
-    """Start conversational chat mode"""
-    await message.answer(
-        "💬 <b>Chat Mode</b>\n\n"
-        "Just send me any message and I'll respond conversationally!\n"
-        "I can help with:\n"
-        "• Answering questions\n"
-        "• Brainstorming ideas\n"
-        "• Explaining concepts\n"
-        "• Casual conversation\n\n"
-        "Type anything to start chatting!"
+@router.callback_query(F.data == "menu:ai_chat")
+async def cmd_chat(event: Message | CallbackQuery):
+    """Start conversational chat mode or show intro"""
+    text = (
+        f"{EMOJI['ai']} <b>Chat Intelligence</b>\n\n"
+        "I am ready for your questions! I can:\n"
+        "• 🧠 <b>Analyze</b> your stored knowledge\n"
+        "• 💎 <b>Elaborate</b> on complex topics\n"
+        "• ✍️ <b>Summarize</b> long texts\n\n"
+        "<i>Just type your message directly or use /ask</i>"
     )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
+    ])
+    
+    if isinstance(event, Message):
+        await event.answer(text, reply_markup=kb)
+    else:
+        await event.message.edit_text(text, reply_markup=kb)
 
 @router.message(Command("summarize"))
 async def cmd_summarize(message: Message):

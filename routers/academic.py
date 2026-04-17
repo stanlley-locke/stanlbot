@@ -48,21 +48,32 @@ from services.llm_service import llm_service
 from utils.formatters import EMOJI
 
 @router.message(Command("assignments"))
-async def cmd_assignments(message: Message):
-    items = await get_assignments(message.from_user.id, status="pending")
+@router.callback_query(F.data == "menu:academic")
+async def cmd_assignments(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    target = event if isinstance(event, Message) else event.message
+    
+    items = await get_assignments(user_id, status="pending")
     if not items:
-        return await message.answer(f"{EMOJI['success']} No pending assignments!")
+        text = f"{EMOJI['success']} No pending assignments!"
+        if isinstance(event, CallbackQuery):
+            return await event.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="« Back", callback_data="menu:back")]]))
+        return await event.answer(text)
     
     kb = []
     text = f"{EMOJI['academic']} <b>Pending Assignments</b>\n\n"
     for item in items:
-        # item: (id, user_id, title, deadline, status, created_at)
         deadline_str = item[3][:10] if isinstance(item[3], str) else item[3].strftime("%Y-%m-%d")
         text += f"• <b>{item[2]}</b>\n  └ ⏰ Due: {deadline_str}\n\n"
         kb.append([InlineKeyboardButton(text=f"✅ Complete: {item[2][:15]}...", callback_data=f"complete:{item[0]}")])
     
     kb.append([InlineKeyboardButton(text="🧠 AI Prioritize", callback_data="academic:prioritize")])
-    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+    kb.append([InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")])
+    
+    if isinstance(event, Message):
+        await event.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+    else:
+        await event.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
 @router.message(Command("prioritize"))
 @router.callback_query(F.data == "academic:prioritize")
