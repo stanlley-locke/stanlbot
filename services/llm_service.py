@@ -136,7 +136,22 @@ try:
                 return f"OCR Error: {str(e)}"
 
         async def parse_expense(self, message: str) -> Optional[Dict[str, Any]]:
-            # ... existing parser ...
+            """Highly optimized expense parser for Free Tier"""
+            if not self._initialized: return None
+            
+            # Ultra-short instruction to save input tokens
+            prompt = f"Extract JSON (amount, category, description, date): {message}"
+            system = "Output raw JSON ONLY. Categories: food, transport, utilities, entertainment, shopping, health, education, other."
+            
+            try:
+                raw = await self.generate_response(prompt, system_instruction=system)
+                if raw:
+                    import json
+                    raw = raw.replace("```json", "").replace("```", "").strip()
+                    return json.loads(raw)
+            except:
+                pass
+            return None
         
         async def summarize_text(self, text: str, max_length: int = 100) -> Optional[str]:
             """Token-efficient summarizer"""
