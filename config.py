@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     ENABLE_RAG: bool = False
     RAG_TOP_K: int = 3
     LLM_RATE_LIMIT_PER_MIN: int = 15  # Gemini free tier limit
-    LLM_MODEL: str = "gemini-2.0-flash-exp"
+    LLM_MODEL: str = "gemini-2.0-flash"
     ENABLE_EXPENSE_TRACKING: bool = False
     ENABLE_VOICE_NOTES: bool = False
     OPENWEATHER_API_KEY: Optional[str] = None
