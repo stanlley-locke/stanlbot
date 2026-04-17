@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from aiogram import BaseMiddleware
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
 from typing import Callable, Dict, Any, Awaitable
 from config import settings

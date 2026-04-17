@@ -31,22 +31,18 @@ async def _health_check(bot):
                 pass
 
 async def _cleanup_temp():
-    import glob
-    import os
+    import glob, os
     from pathlib import Path
     temp_dir = Path("storage/temp")
     if temp_dir.exists():
         for f in glob.glob(str(temp_dir / "*.tmp")):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
+            try: os.remove(f)
+            except OSError: pass
 
 def init_scheduler(bot):
-    scheduler.add_job(lambda: _process_reminders(bot), IntervalTrigger(minutes=5), id="reminders", replace_existing=True)
+    scheduler.add_job(_process_reminders, IntervalTrigger(minutes=5), args=[bot], id="reminders", replace_existing=True)
     if settings.HEALTH_CHECK_URL:
-        scheduler.add_job(lambda: _health_check(bot), CronTrigger(minute="*/10"), id="health_check", replace_existing=True)
+        scheduler.add_job(_health_check, CronTrigger(minute="*/10"), args=[bot], id="health_check", replace_existing=True)
     scheduler.add_job(_cleanup_temp, CronTrigger(hour=3, minute=0), id="cleanup", replace_existing=True)
-    
     scheduler.start()
-    logger.info("Scheduler initialized with reminder, health check, and cleanup jobs.")
+    logger.info("Scheduler initialized")
