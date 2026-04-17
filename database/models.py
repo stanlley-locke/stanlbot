@@ -54,7 +54,7 @@ SCHEMA_SQL = [
         category TEXT NOT NULL,
         amount REAL NOT NULL,
         period TEXT DEFAULT 'monthly',
-        start_date TEXT,
+        start_date TEXT DEFAULT 'static',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, category, period, start_date)

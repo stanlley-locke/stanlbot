@@ -13,7 +13,7 @@ from aiogram.fsm.state import StatesGroup, State
 from config import settings
 from database.queries import (
     add_expense, get_expenses_by_period, get_expense_summary,
-    set_budget, get_all_budgets, get_budget_status
+    set_budget, get_all_budgets, get_budget_status, get_budget_alerts
 )
 from services.llm_service import llm_service
 from utils.formatters import safe_html, EMOJI
@@ -24,20 +24,78 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "menu:finance")
 async def cb_finance_menu(cb: CallbackQuery):
     """Show the interactive Finance dashboard."""
+    # Check for budget alerts
+    alerts = await get_budget_alerts(cb.from_user.id)
+    alert_text = "\n\n" + "\n".join(alerts) if alerts else ""
+
     text = (
         f"{EMOJI['finance']} <b>Personal Finance Hub</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
         "Welcome to your AI-powered wallet! I can help you tracking expenses, managing budgets, and analyzing your spending habits.\n\n"
         "<b>Available Features:</b>\n"
         "• 💰 <b>Log Spending</b>: Just type <i>'Spent 20 on groceries'</i>\n"
+        "• 📲 <b>Auto-Tracking</b>: Paste your <b>M-Pesa/Bank SMS</b> here!\n"
         "• 📊 <b>Visual Charts</b>: Use /summary_chart\n"
         "• 🧠 <b>AI Review</b>: Use /budget_review\n"
         "• 📉 <b>Budgets</b>: Set monthly limits with /budget"
+        f"{alert_text}"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
     ])
     await cb.message.edit_text(text, reply_markup=kb)
+
+@router.message(F.text & ~F.text.startswith('/'))
+async def auto_detect_transaction(message: Message, state: FSMContext):
+    """Detect if a message is a financial transaction and parse it."""
+    # Heuristic check for common transaction keywords to save AI tokens
+    indicators = ["Confirmed", "Ksh", "Ref:", "M-PESA", "Paid to", "Received", "Balance"]
+    if not any(word in message.text for word in indicators) and len(message.text) < 20:
+        return
+
+    # Use LLM to verify and parse
+    data = await llm_service.parse_transaction_message(message.text)
+    if not data or not data.get("is_transaction"):
+        return
+
+    await state.update_data(txn_data=data)
+    
+    text = (
+        f"💳 <b>Transaction Detected!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<b>Type:</b> {data['type'].capitalize()}\n"
+        f"<b>Amount:</b> ${data['amount']:.2f}\n"
+        f"<b>Category:</b> {data['category'].capitalize()}\n"
+        f"<b>Summary:</b> <i>{data['summary']}</i>\n\n"
+        "Would you like to log this in your expenses?"
+    )
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Confirm", callback_data="txn:confirm"),
+         InlineKeyboardButton(text="❌ Ignore", callback_data="txn:ignore")]
+    ])
+    
+    await message.answer(text, reply_markup=kb)
+    await state.set_state(TransactionState.confirm)
+
+@router.callback_query(TransactionState.confirm, F.data.startswith("txn:"))
+async def process_txn_confirmation(cb: CallbackQuery, state: FSMContext):
+    if cb.data == "txn:ignore":
+        await cb.message.edit_text("Transaction ignored.")
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    txn = data.get("txn_data")
+    
+    if txn["type"] == "expense":
+        await add_expense(cb.from_user.id, txn["amount"], txn["category"], txn["summary"])
+        await cb.message.edit_text(f"✅ Expense of ${txn['amount']:.2f} logged!")
+    else:
+        # For now, we don't handle income tracking separately, but we could
+        await cb.message.edit_text("Income detected. Tracking for income is coming soon!")
+    
+    await state.clear()
 logger = logging.getLogger(__name__)
 
 CATEGORIES = ["food", "transport", "utilities", "entertainment", "shopping", "health", "education", "other"]
@@ -47,6 +105,9 @@ class ExpenseState(StatesGroup):
     category = State()
     description = State()
     date = State()
+
+class TransactionState(StatesGroup):
+    confirm = State()
 
 @router.message(Command("expense", "spend"))
 async def cmd_expense(message: Message, state: FSMContext):

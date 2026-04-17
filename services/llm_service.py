@@ -158,6 +158,30 @@ try:
             prompt = f"TL;DR in <{max_length} words: {text}"
             return await self.generate_response(prompt)
     
+        async def parse_transaction_message(self, text: str) -> Optional[Dict[str, Any]]:
+            """Detect and parse financial transactions from merchant SMS/text."""
+            if not self._initialized: return None
+            
+            prompt = f"Parse this transaction: {text}"
+            system = (
+                "You are a financial parser. Identify if the text is a financial transaction. "
+                "Output JSON: {is_transaction: bool, type: 'income'|'expense', amount: float, category: string, summary: string}. "
+                "Categories: food, transport, utilities, entertainment, shopping, health, education, other. "
+                "Output RAW JSON ONLY. If not a transaction, set is_transaction to false."
+            )
+            
+            try:
+                raw = await self.generate_response(prompt, system_instruction=system)
+                if raw:
+                    import json
+                    raw = raw.replace("```json", "").replace("```", "").strip()
+                    data = json.loads(raw)
+                    if data.get("is_transaction"):
+                        return data
+            except Exception as e:
+                logger.error(f"Transaction parsing error: {e}")
+            return None
+
     # Singleton instance
     llm_service = LLMService()
     

@@ -23,16 +23,16 @@ async def set_user_language(user_id: int, lang: str):
 
 # ==================== NOTES ====================
 async def save_note(user_id: int, content: str, tags: List[str] = None, source: str = "manual"):
-    await db.execute_write(
-        "INSERT INTO notes (user_id, content, tags, source) VALUES (?, ?, ?, ?)",
+    """Saves a note and indexes it for search."""
+    cursor = await db.execute_write(
+        "INSERT INTO notes (user_id, content, tags, source) VALUES (?, ?, ?, ?) RETURNING id",
         (user_id, content, json.dumps(tags or []), source)
     )
-    cursor = await db.execute_read("SELECT last_insert_rowid()")
     row = await cursor.fetchone()
     if row:
         note_id = row[0]
         await db.execute_write(
-            "INSERT INTO notes_fts (id, content) VALUES (?, ?)",
+            "INSERT OR REPLACE INTO notes_fts (id, content) VALUES (?, ?)",
             (note_id, content)
         )
 
@@ -222,15 +222,26 @@ async def get_habit_stats(habit_id: int) -> Dict:
     return {"total_completions": total, "current_streak": streak}
 
 # ==================== BUDGET MANAGEMENT (NEW) ====================
-async def set_budget(user_id: int, category: str, amount: float, period: str = "monthly", start_date: Optional[str] = None):
+async def set_budget(user_id: int, category: str, amount: float, period: str = "monthly", start_date: str = "static"):
     """Set or update a budget for a category."""
     await db.execute_write(
         """INSERT INTO budgets (user_id, category, amount, period, start_date) 
            VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(user_id, category, period, COALESCE(start_date, 'static')) 
+           ON CONFLICT(user_id, category, period, start_date) 
            DO UPDATE SET amount=?, updated_at=CURRENT_TIMESTAMP""",
         (user_id, category, amount, period, start_date, amount)
     )
+
+async def get_budget_alerts(user_id: int) -> List[str]:
+    """Check all budgets and return alert strings for those exceeded."""
+    status = await get_budget_status(user_id)
+    alerts = []
+    for item in status:
+        if item['percent_used'] >= 100:
+            alerts.append(f"🚨 <b>{item['category'].capitalize()}</b> budget exceeded! ({item['percent_used']}%)")
+        elif item['percent_used'] > 85:
+            alerts.append(f"⚠️ <b>{item['category'].capitalize()}</b> budget almost full ({item['percent_used']}%)")
+    return alerts
 
 async def get_budget(user_id: int, category: str, period: str = "monthly") -> Optional[Tuple]:
     """Retrieve budget for a specific category and period."""
