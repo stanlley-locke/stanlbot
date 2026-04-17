@@ -13,7 +13,7 @@ from aiogram.fsm.state import StatesGroup, State
 from config import settings
 from database.queries import (
     add_expense, get_expenses_by_period, get_expense_summary,
-    set_budget, get_all_budgets, check_budget_status
+    set_budget, get_all_budgets, get_budget_status
 )
 from services.llm_service import llm_service
 from utils.formatters import safe_html
@@ -38,7 +38,7 @@ async def cmd_expense(message: Message, state: FSMContext):
     if len(args) > 1 and settings.ENABLE_RAG:
         expense_data = await llm_service.parse_expense(args[1])
 
-        if expense_:
+        if expense_data:
             await add_expense(
                 user_id=message.from_user.id,
                 amount=expense_data['amount'],
@@ -48,10 +48,10 @@ async def cmd_expense(message: Message, state: FSMContext):
             )
 
             return await message.answer(
-                f"✅ Expense logged!\n"
-                f"💰 Amount: ${expense_data['amount']:.2f}\n"
-                f"📂 Category: {expense_data['category']}\n"
-                f"📝 {expense_data['description']}"
+                f"Expense logged!\n"
+                f"Amount: ${expense_data['amount']:.2f}\n"
+                f"Category: {expense_data['category']}\n"
+                f"{expense_data['description']}"
             )
 
     # Manual entry flow
@@ -73,15 +73,15 @@ async def cmd_expense(message: Message, state: FSMContext):
                 )
 
                 return await message.answer(
-                    f"✅ Expense logged: ${amount:.2f} - {category} - {description}"
+                    f"Expense logged: ${amount:.2f} - {category} - {description}"
                 )
             except ValueError:
                 pass
 
     await message.answer(
-        "💰 <b>Add Expense</b>\n\n"
+        "Add Expense\n\n"
         "Quick format:\n"
-        "<code>/expense 15.50 food Lunch at cafe</code>\n\n"
+        "/expense 15.50 food Lunch at cafe\n\n"
         "Or send just the amount to start guided entry:"
     )
     await state.set_state(ExpenseState.amount)
@@ -156,7 +156,7 @@ async def process_date(message: Message, state: FSMContext):
     )
 
     await message.answer(
-        f"✅ Expense saved!\n"
+        f"Expense saved!\n"
         f"${data['amount']:.2f} - {data['category']}\n"
         f"{data['description']} ({expense_date})"
     )
@@ -193,13 +193,13 @@ async def cmd_expenses(message: Message):
     month_str = now.strftime('%Y-%m')
     summary = await get_expense_summary(message.from_user.id, month_str)
 
-    text = f"📊 <b>Expenses ({period})</b>\n\n"
-    text += f"💵 Total: <b>${total:.2f}</b>\n\n"
-    text += "<b>By Category:</b>\n"
+    text = f"Expenses ({period})\n\n"
+    text += f"Total: ${total:.2f}\n\n"
+    text += "By Category:\n"
 
     for cat, amount in sorted(summary.items(), key=lambda x: x[1], reverse=True):
         percentage = (amount / total * 100) if total > 0 else 0
-        text += f"• {cat.capitalize()}: ${amount:.2f} ({percentage:.1f}%)\n"
+        text += f"- {cat.capitalize()}: ${amount:.2f} ({percentage:.1f}%)\n"
 
     text += f"\nLast 5 transactions:\n"
     for _, amount, category, desc, date, _ in expenses[:5]:
@@ -218,18 +218,21 @@ async def cmd_budget(message: Message):
 
         if not budgets:
             return await message.answer(
-                "📋 <b>Budget Management</b>\n\n"
+                "Budget Management\n\n"
                 "No budgets set yet. Use:\n"
-                "<code>/budget food 500</code> - Set $500 monthly budget for food\n"
-                "<code>/budget transport 200</code> - Set $200 for transport\n\n"
+                "/budget food 500 - Set $500 monthly budget for food\n"
+                "/budget transport 200 - Set $200 for transport\n\n"
                 f"Categories: {', '.join(CATEGORIES)}"
             )
 
-        text = "📊 <b>Your Monthly Budgets</b>\n\n"
-        for cat, limit in sorted(budgets.items()):
-            text += f"• {cat.capitalize()}: ${limit:.2f}\n"
+        text = "Your Monthly Budgets\n\n"
+        for budget in budgets:
+            # budget tuple: (id, user_id, category, amount, period, start_date, created_at, updated_at)
+            cat = budget[2]
+            limit = budget[3]
+            text += f"- {cat.capitalize()}: ${limit:.2f}\n"
 
-        text += "\nUse <code>/budget category amount</code> to modify."
+        text += "\nUse /budget category amount to modify."
         return await message.answer(text)
 
     # Set budget: /budget food 500
@@ -240,29 +243,26 @@ async def cmd_budget(message: Message):
 
             if category not in CATEGORIES:
                 return await message.answer(
-                    f"⚠️ Invalid category. Choose from: {', '.join(CATEGORIES)}"
+                    f"Invalid category. Choose from: {', '.join(CATEGORIES)}"
                 )
 
-            success = await set_budget(message.from_user.id, category, amount)
+            await set_budget(message.from_user.id, category, amount)
 
-            if success:
-                await message.answer(
-                    f"✅ Budget set!\n"
-                    f"📂 {category.capitalize()}: ${amount:.2f}/month\n\n"
-                    "You'll be alerted when approaching this limit!"
-                )
-            else:
-                await message.answer("⚠️ Failed to set budget. Try again.")
+            await message.answer(
+                f"Budget set!\n"
+                f"{category.capitalize()}: ${amount:.2f}/month\n\n"
+                "You will be alerted when approaching this limit!"
+            )
 
         except ValueError:
-            await message.answer("⚠️ Invalid amount. Please enter a number (e.g., 500)")
+            await message.answer("Invalid amount. Please enter a number (e.g., 500)")
         return
 
     await message.answer(
-        "📋 <b>Budget Management</b>\n\n"
+        "Budget Management\n\n"
         "Usage:\n"
-        "<code>/budget</code> - View all budgets\n"
-        "<code>/budget food 500</code> - Set monthly budget\n\n"
+        "/budget - View all budgets\n"
+        "/budget food 500 - Set monthly budget\n\n"
         f"Categories: {', '.join(CATEGORIES)}"
     )
 
@@ -272,33 +272,38 @@ async def cmd_budget_status(message: Message):
     now = datetime.now()
     month_str = now.strftime('%Y-%m')
 
-    status = await check_budget_status(message.from_user.id, month_str)
+    status_list = await get_budget_status(message.from_user.id)
 
-    if not status:
+    if not status_list:
         return await message.answer(
-            "📊 <b>Budget Status</b>\n\n"
-            "No budgets configured. Use <code>/budget category amount</code> to set one."
+            "Budget Status\n\n"
+            "No budgets configured. Use /budget category amount to set one."
         )
 
-    text = f"📊 <b>Budget Status ({now.strftime('%B %Y')})</b>\n\n"
+    text = f"Budget Status ({now.strftime('%B %Y')})\n\n"
 
     alerts = []
-    for category, data in sorted(status.items(), key=lambda x: x[1]['percentage'], reverse=True):
-        emoji = "🔴" if data['over_budget'] else "🟡" if data['percentage'] > 80 else "🟢"
+    for item in sorted(status_list, key=lambda x: x['percent_used'], reverse=True):
+        category = item['category']
+        budgeted = item['budgeted']
+        spent = item['spent']
+        remaining = item['remaining']
+        percent = item['percent_used']
+
+        status_icon = "[OVER]" if percent >= 100 else "[WARN]" if percent > 80 else "[OK]"
         text += (
-            f"{emoji} <b>{category.capitalize()}</b>\n"
-            f"  Spent: ${data['spent']:.2f} / ${data['budget']:.2f}\n"
-            f"  {data['percentage']:.1f}% used"
+            f"{status_icon} {category.capitalize()}\n"
+            f"  Spent: ${spent:.2f} / ${budgeted:.2f}\n"
+            f"  {percent:.1f}% used"
         )
-        if data['remaining'] > 0:
-            text += f" (${data['remaining']:.2f} left)\n"
+        if remaining > 0:
+            text += f" (${remaining:.2f} left)\n"
         else:
-            text += f" (Over by ${abs(data['remaining']):.2f}!)\n"
-            alerts.append(f"⚠️ You've exceeded your {category} budget!")
+            text += f" (Over by ${abs(remaining):.2f}!)\n"
+            alerts.append(f"You have exceeded your {category} budget!")
         text += "\n"
 
     if alerts:
         text += "\n" + "\n".join(alerts)
 
     await message.answer(text)
-
