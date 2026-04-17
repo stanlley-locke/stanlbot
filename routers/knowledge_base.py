@@ -52,15 +52,50 @@ async def cmd_notes(event: Message | CallbackQuery):
     else:
         await event.answer(text, reply_markup=kb)
 
+from services.rag_service import rag_service
+from utils.formatters import EMOJI
+
 @router.message(Command("find"))
 async def cmd_find(message: Message):
+    """Unified search: FTS5 (Local) + ChromaDB (Semantic)."""
     query = sanitize_input(message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "")
     if not query:
-        return await message.answer(safe_html("Usage: <code>/find &lt;query&gt;</code>"))
-    results = await search_notes_fts(query, message.from_user.id, limit=5)
-    if not results:
-        return await message.answer(f"No matches found for: <code>{safe_html(query)}</code>")
-    text = "<b>Search Results</b>\n" + "\n---\n".join(
-        f"<pre>{safe_html(content)}</pre>" for _, content, _, _ in results
-    )
+        return await message.answer(f"{EMOJI['help']} Usage: <code>/find &lt;query&gt;</code>")
+
+    status_msg = await message.answer(f"🔍 Searching local and semantic memory...")
+    
+    user_id = message.from_user.id
+    
+    # 1. Local FTS Search
+    local_results = await search_notes_fts(query, user_id, limit=3)
+    
+    # 2. Semantic Search
+    semantic_results = await rag_service.search_similar(user_id, query, top_k=3)
+    
+    await status_msg.delete()
+    
+    if not local_results and not semantic_results:
+        return await message.answer(f"❌ No matches found for: <code>{safe_html(query)}</code>")
+    
+    text = f"🔎 <b>Search Results: {safe_html(query)}</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━\n\n"
+    
+    seen_content = set()
+    
+    if local_results:
+        text += "<b>📍 Direct Matches (Local)</b>\n"
+        for _, content, _, _ in local_results:
+            clean_content = content.strip()[:100]
+            if clean_content not in seen_content:
+                text += f"• {safe_html(content[:200])}...\n\n"
+                seen_content.add(clean_content)
+    
+    if semantic_results:
+        text += "<b>🧠 Related Concepts (AI)</b>\n"
+        for res in semantic_results:
+            clean_content = res['content'].strip()[:100]
+            if clean_content not in seen_content:
+                text += f"• {safe_html(res['content'][:200])}...\n\n"
+                seen_content.add(clean_content)
+                
     await message.answer(text)

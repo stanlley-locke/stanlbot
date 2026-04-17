@@ -44,11 +44,12 @@ async def get_notes_paginated(user_id: int, offset: int = 0, limit: int = 10) ->
     return await cursor.fetchall()
 
 async def search_notes_fts(query: str, user_id: int, limit: int = 10) -> List[Tuple]:
+    # Use standard FTS5 column MATCH syntax with bound parameter
     cursor = await db.execute_read(
         """SELECT n.id, n.content, n.tags, n.created_at 
            FROM notes n 
-           JOIN notes_fts_idx f ON n.id = f.rowid 
-           WHERE notes_fts_idx MATCH ? AND n.user_id = ?
+           JOIN notes_fts f ON n.id = f.id 
+           WHERE notes_fts MATCH ? AND n.user_id = ?
            ORDER BY rank LIMIT ?""",
         (query, user_id, limit)
     )
@@ -296,12 +297,12 @@ async def get_budget_alerts(user_id: int, threshold: float = 0.9) -> List[Dict]:
 # ==================== HYBRID SEARCH & DISCOVERY ====================
 async def search_notes_hybrid(query: str, user_id: int, limit: int = 5) -> List[Dict]:
     """Combines FTS with structured metadata filtering."""
-    # FTS part
+    # FTS part - Use standard FTS5 MATCH syntax
     cursor = await db.execute_read(
         """SELECT n.id, n.content, n.tags, n.created_at, n.source
            FROM notes n 
-           JOIN notes_fts_idx f ON n.id = f.rowid 
-           WHERE notes_fts_idx MATCH ? AND n.user_id = ?
+           JOIN notes_fts f ON n.id = f.id 
+           WHERE notes_fts MATCH ? AND n.user_id = ?
            ORDER BY rank LIMIT ?""",
         (query, user_id, limit)
     )

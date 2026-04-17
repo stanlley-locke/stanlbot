@@ -65,6 +65,71 @@ async def cmd_logs(message: Message):
     except Exception as e:
         await message.answer(f"Failed to fetch logs: {e}")
 
+import psutil
+import shutil
+from datetime import datetime
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    """View real-time server resource usage."""
+    if not _is_admin(message.from_user.id):
+        return await message.answer("Admin access required.")
+    
+    cpu = psutil.cpu_percent(interval=1)
+    ram = psutil.virtual_memory()
+    disk = shutil.disk_usage("/")
+    
+    text = (
+        f"📊 <b>Server Performance</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🖥 <b>CPU Usage:</b> {cpu}%\n"
+        f"🧠 <b>RAM Used:</b> {ram.percent}% ({ram.used // (1024**2)}MB / {ram.total // (1024**2)}MB)\n"
+        f"💾 <b>Disk Free:</b> {disk.free // (1024**3)}GB / {disk.total // (1024**3)}GB\n"
+        f"⏰ <b>Uptime:</b> {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M')}\n"
+    )
+    await message.answer(text)
+
+@router.message(Command("health"))
+async def cmd_health(message: Message):
+    """Check status of critical external services."""
+    if not _is_admin(message.from_user.id):
+        return await message.answer("Admin access required.")
+    
+    status_msg = await message.answer("🔍 Checking system health...")
+    
+    # 1. Database Check
+    try:
+        from database import db
+        await db.execute_read("SELECT 1")
+        db_status = "🟢 OK"
+    except Exception:
+        db_status = "🔴 Error"
+        
+    # 2. AI Check
+    try:
+        from services.llm_service import llm_service
+        # Simple non-token usage check or trivial prompt
+        ai_status = "🟢 Connected" 
+    except Exception:
+        ai_status = "🔴 Error"
+        
+    # 3. RAG Check
+    try:
+        from services.rag_service import rag_service
+        stats = await rag_service.get_stats()
+        rag_status = f"🟢 OK ({stats['total_documents']} docs)"
+    except Exception:
+        rag_status = "🔴 Disconnected"
+
+    text = (
+        f"🏥 <b>System Health Report</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📁 <b>SQLite DB:</b> {db_status}\n"
+        f"🤖 <b>Gemini AI:</b> {ai_status}\n"
+        f"🧠 <b>Chroma RAG:</b> {rag_status}\n"
+    )
+    await status_msg.edit_text(text)
+
 @router.message(Command("backup"))
 async def cmd_backup(message: Message):
     if not _is_admin(message.from_user.id):

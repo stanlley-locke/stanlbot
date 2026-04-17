@@ -103,6 +103,35 @@ async def cmd_prioritize(event: Message | CallbackQuery):
         f"<i>Stay focused! You got this!</i>"
     )
 
+@router.message(Command("breakdown"))
+async def cmd_breakdown(message: Message):
+    """Breakdown an assignment into manageable steps."""
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        return await message.answer(f"{EMOJI['academic']} Usage: <code>/breakdown Assignment Title</code>")
+    
+    title = args[1]
+    status_msg = await message.answer(f"{EMOJI['ai']} Decomposing task...")
+    
+    sys_prompt = (
+        "You are an expert academic tutor. Breakdown the given assignment title into "
+        "exactly 5 actionable, sequence-ordered study steps. Be concise. "
+        "Format with numbers 1-5."
+    )
+    
+    breakdown = await llm_service.generate_response(
+        prompt=f"Breakdown this assignment: {title}",
+        system_instruction=sys_prompt
+    )
+    
+    await status_msg.delete()
+    await message.answer(
+        f"🧠 <b>Study Plan: {safe_html(title)}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{breakdown}\n\n"
+        f"<i>Tip: Follow these steps to finish faster!</i>"
+    )
+
 @router.callback_query(F.data.startswith("complete:"))
 async def cb_complete(cb: CallbackQuery):
     aid = cb.data.split(":")[1]

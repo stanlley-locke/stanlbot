@@ -168,6 +168,93 @@ async def cmd_budget(message: Message):
         f"Categories: {', '.join(CATEGORIES)}"
     )
 
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
+from aiogram.types import BufferedInputFile
+
+@router.message(Command("summary_chart"))
+async def cmd_summary_chart(message: Message):
+    """Generate a visual spending chart using Pillow."""
+    summary = await get_expense_summary(message.from_user.id, datetime.now().strftime('%Y-%m'))
+    
+    if not summary:
+        return await message.answer("No spending recorded this month to create a chart.")
+
+    # Chart Configuration
+    width, height = 600, 400
+    margin = 50
+    bar_gap = 20
+    
+    img = Image.new('RGB', (width, height), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    
+    # Title
+    draw.text((width//2 - 50, 10), "Monthly Spending", fill=(0, 0, 0))
+    
+    # Calculate bar widths
+    categories = list(summary.keys())
+    values = list(summary.values())
+    max_val = max(values)
+    
+    bar_width = (width - 2*margin - (len(categories)-1)*bar_gap) // len(categories)
+    
+    for i, (cat, val) in enumerate(summary.items()):
+        # Bar height scaled to max
+        bar_height = int((val / max_val) * (height - 2*margin))
+        x0 = margin + i * (bar_width + bar_gap)
+        y0 = height - margin - bar_height
+        x1 = x0 + bar_width
+        y1 = height - margin
+        
+        # Draw bar (different colors for variety)
+        color = (52, 152, 219) if i % 2 == 0 else (46, 204, 113)
+        draw.rectangle([x0, y0, x1, y1], fill=color)
+        
+        # Label
+        label = f"{cat[:8]}"
+        draw.text((x0, y1 + 5), label, fill=(0, 0, 0))
+        # Value
+        draw.text((x0, y0 - 15), f"${int(val)}", fill=(0, 0, 0))
+
+    # Send image as file
+    bio = BytesIO()
+    img.save(bio, format="PNG")
+    bio.seek(0)
+    
+    photo = BufferedInputFile(bio.read(), filename="spending_chart.png")
+    await message.answer_photo(photo, caption="📸 <b>Your Monthly Spending Chart</b>")
+
+@router.message(Command("budget_review"))
+async def cmd_budget_review(message: Message):
+    """AI analysis of spending habits."""
+    status_msg = await message.answer(f"{EMOJI['ai']} Analyzing habits...")
+    
+    summary = await get_expense_summary(message.from_user.id, datetime.now().strftime('%Y-%m'))
+    if not summary:
+        await status_msg.delete()
+        return await message.answer("Need more data for analysis. Go spend some money! 😉")
+
+    data_str = "\n".join([f"{k}: ${v}" for k, v in summary.items()])
+    
+    sys_prompt = (
+        "You are a professional financial advisor. Analyze this user's monthly "
+        "spending data and provide 3 specific, actionable tips to save money. "
+        "Be encouraging but direct."
+    )
+    
+    analysis = await llm_service.generate_response(
+        prompt=f"Analyze this spending data:\n{data_str}",
+        system_instruction=sys_prompt
+    )
+    
+    await status_msg.delete()
+    await message.answer(
+        f"💡 <b>AI Financial Review</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{analysis}\n\n"
+        f"<i>Disclaimer: This is AI advice, not professional financial planning.</i>"
+    )
+
 @router.message(Command("budget_status", "budget_check"))
 async def cmd_budget_status(message: Message):
     """Check current spending vs budget"""

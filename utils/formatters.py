@@ -15,7 +15,8 @@ EMOJI = {
     "alert": "⚠️",
     "success": "✅",
     "time": "⏰",
-    "stats": "📊"
+    "stats": "📊",
+    "knowledge": "🧠"
 }
 
 def safe_html(text: str) -> str:
@@ -34,28 +35,24 @@ def truncate_message(text: str, max_len: int = 4000) -> str:
 
 def format_dashboard(data: dict) -> str:
     """Creates a premium 'Daily Briefing' dashboard text."""
-    now = datetime.now().strftime("%A, %b %d")
+    now = datetime.now().strftime("%A, %B %d")
     
-    # Financial progress (simplified)
-    finance_status = data.get("finance", "No budget set")
-    
-    # Academic status (nearest deadline)
-    academic_status = data.get("academic", "No pending tasks")
-    
-    # Knowledge stats
+    finance_status = data.get("finance", "No trends yet")
+    academic_status = data.get("academic", "All clear!")
     knowledge_count = data.get("knowledge_count", 0)
 
     text = (
-        f"✨ <b>StanlBot Premium</b> | {now}\n"
+        f"💎 <b>StanlBot Premium</b>\n"
+        f"📅 {now}\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"{EMOJI['finance']} <b>Finance</b>\n"
+        f"{EMOJI['finance']} <b>Finance Trend</b>\n"
         f"└ {finance_status}\n\n"
-        f"{EMOJI['academic']} <b>Academic</b>\n"
+        f"{EMOJI['academic']} <b>Next Deadline</b>\n"
         f"└ {academic_status}\n\n"
-        f"{EMOJI['notes']} <b>Knowledge</b>\n"
-        f"└ {knowledge_count} items in local memory\n\n"
+        f"{EMOJI['notes']} <b>Local Knowledge</b>\n"
+        f"└ {knowledge_count} items indexed\n\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>How can I assist you today?</i>"
+        f"<i>Select a module below to begin:</i>"
     )
     return text
 
@@ -71,16 +68,24 @@ def build_pagination_kb(prefix: str, current_page: int, total_pages: int) -> Inl
     kb.append([InlineKeyboardButton(text="Close", callback_data="close_menu")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
-def build_main_menu_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+def build_main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+    # Build standard rows
+    rows = [
         [InlineKeyboardButton(text=f"{EMOJI['academic']} Academic", callback_data="menu:academic"),
          InlineKeyboardButton(text=f"{EMOJI['kitchen']} Kitchen", callback_data="menu:kitchen")],
-        [InlineKeyboardButton(text=f"{EMOJI['notes']} Notes", callback_data="menu:notes"),
-         InlineKeyboardButton(text=f"{EMOJI['devops']} DevOps", callback_data="menu:devops")],
-        [InlineKeyboardButton(text=f"{EMOJI['settings']} Settings", callback_data="menu:settings"),
-         InlineKeyboardButton(text=f"{EMOJI['help']} Help", callback_data="menu:help")],
-        [InlineKeyboardButton(text="💬 Ask AI Anything", callback_data="menu:ai_chat")]
-    ])
+        [InlineKeyboardButton(text=f"{EMOJI['notes']} Notes", callback_data="menu:notes")]
+    ]
+    
+    # Add DevOps only for admins - shared row with Notes for space efficiency
+    if is_admin:
+        rows[1].append(InlineKeyboardButton(text=f"{EMOJI['devops']} DevOps", callback_data="menu:devops"))
+    
+    # Add bottom rows
+    rows.append([InlineKeyboardButton(text=f"{EMOJI['settings']} Settings", callback_data="menu:settings"),
+                InlineKeyboardButton(text=f"{EMOJI['help']} Help", callback_data="menu:help")])
+    rows.append([InlineKeyboardButton(text="💬 Ask AI Anything", callback_data="menu:ai_chat")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 def build_settings_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[

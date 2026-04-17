@@ -112,52 +112,67 @@ async def cb_close(cb: CallbackQuery):
 
 @router.callback_query(F.data == "menu:help")
 async def cb_help(cb: CallbackQuery):
+    is_admin = cb.from_user.id in settings.ADMIN_IDS
     text = (
         f"{EMOJI['help']} <b>StanlBot Help Center</b>\n\n"
-        "Select a category to see available commands and tips:"
+        "Select a topic to view details:"
     )
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    
+    # Standard buttons
+    kb_rows = [
         [InlineKeyboardButton(text="💰 Finance", callback_data="help:finance"),
          InlineKeyboardButton(text="🎓 Academic", callback_data="help:academic")],
-        [InlineKeyboardButton(text="✍️ Knowledge", callback_data="help:knowledge"),
-         InlineKeyboardButton(text="🛠️ DevOps", callback_data="help:devops")],
-        [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
-    ])
-    await cb.message.edit_text(text, reply_markup=kb)
+        [InlineKeyboardButton(text=f"{EMOJI['knowledge']} Knowledge", callback_data="help:knowledge")]
+    ]
+    
+    # Admin only help
+    if is_admin:
+        kb_rows[1].append(InlineKeyboardButton(text="🛠️ DevOps", callback_data="help:devops"))
+        
+    kb_rows.append([InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")])
+    
+    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
 
 @router.callback_query(F.data.startswith("help:"))
 async def cb_help_category(cb: CallbackQuery):
     category = cb.data.split(":")[1]
+    is_admin = cb.from_user.id in settings.ADMIN_IDS
     
+    if category == "devops" and not is_admin:
+        return await cb.answer("Admin access required.", show_alert=True)
+
     help_texts = {
         "finance": (
-            "💰 <b>Finance Commands</b>\n\n"
-            "• /expense &lt;amount&gt; &lt;cat&gt; &lt;desc&gt; - Log expense\n"
-            "• /expenses - Monthly summary\n"
-            "• /budget &lt;cat&gt; &lt;amount&gt; - Set monthly limit\n\n"
-            "<i>💡 Try: 'Spent $15 on lunch' (AI will parse it!)</i>"
+            "💰 <b>Finance & Spending</b>\n\n"
+            "• /expense &lt;msg&gt; - Log expense (AI parses it)\n"
+            "• /expenses - Monthly spending summary\n"
+            "• /summary_chart - 📸 Generate spending chart\n"
+            "• /budget - Manage monthly limits"
         ),
         "academic": (
-            "🎓 <b>Academic Commands</b>\n\n"
+            "🎓 <b>Academic Productivity</b>\n\n"
             "• /assign - Add new assignment\n"
             "• /assignments - View pending tasks\n"
-            "• /prioritize - AI-ranked task list"
+            "• /breakdown - 🧠 AI-powered study plan\n"
+            "• /prioritize - AI-ranked priority list"
         ),
         "knowledge": (
-            "✍️ <b>Knowledge Base</b>\n\n"
+            "🧠 <b>Memory & Search</b>\n\n"
             "• /note &lt;text&gt; - Save a quick note\n"
-            "• /find &lt;query&gt; - Search notes/chats\n"
-            "• /ask &lt;question&gt; - Query AI + notes\n"
-            "• /teach &lt;info&gt; - Feed AI local knowledge"
+            "• /find &lt;query&gt; - Universal search (Local + AI)\n"
+            "• /ask &lt;question&gt; - Expert AI chat\n"
+            "• /summarize - Fast text analysis"
         ),
         "devops": (
-            "🛠️ <b>DevOps & Server</b>\n\n"
-            "• /ec2 - Check instance status\n"
-            "• /deploy - Trigger CI/CD webhook"
+            "🛠️ <b>System Administration</b>\n\n"
+            "• /stats - CPU, RAM & Disk status\n"
+            "• /ec2 - Instance management\n"
+            "• /deploy - Trigger sync webhook\n"
+            "• /backup - Manual DB snapshot"
         )
     }
     
-    text = help_texts.get(category, "Category info coming soon...")
+    text = help_texts.get(category, "Details coming soon...")
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="« Back to Help", callback_data="menu:help")]
     ])

@@ -3,6 +3,7 @@ RAG Service using ChromaDB for vector storage and semantic search.
 Provides context retrieval for LLM-enhanced responses.
 """
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import hashlib
