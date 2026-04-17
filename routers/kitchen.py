@@ -2,8 +2,8 @@ import logging
 import random
 import yaml
 from pathlib import Path
-from aiogram import Router
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Router, F
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import Command
 from utils.formatters import safe_html
 from database.queries import add_grocery_item, get_grocery_list, clear_grocery_list
