@@ -8,6 +8,12 @@ def safe_html(text: str) -> str:
         text = text.replace(f"&lt;{tag}&gt;", f"<{tag}>").replace(f"&lt;/{tag}&gt;", f"</{tag}>")
     return text
 
+def truncate_message(text: str, max_length: int = 4000) -> str:
+    """Truncate message to fit Telegram limits"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length-3] + "..."
+
 def build_pagination_kb(prefix: str, current_page: int, total_pages: int) -> InlineKeyboardMarkup:
     kb = []
     row = []

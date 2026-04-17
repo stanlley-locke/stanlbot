@@ -48,9 +48,27 @@ SCHEMA_SQL = [
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
         item TEXT NOT NULL, quantity INTEGER DEFAULT 1, completed INTEGER DEFAULT 0
     )""",
+    """CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
+        amount REAL NOT NULL, category TEXT NOT NULL, description TEXT,
+        expense_date DATE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
+    """CREATE TABLE IF NOT EXISTS habits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
+        name TEXT NOT NULL, frequency TEXT DEFAULT 'daily', 
+        streak INTEGER DEFAULT 0, last_completed DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
+    """CREATE TABLE IF NOT EXISTS habit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, habit_id INTEGER REFERENCES habits(id),
+        completed_date DATE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_assignments_status ON assignments(status)",
     "CREATE INDEX IF NOT EXISTS idx_reminders_sent ON reminders(sent)",
-    "CREATE INDEX IF NOT EXISTS idx_grocery_user ON grocery_items(user_id)"
+    "CREATE INDEX IF NOT EXISTS idx_grocery_user ON grocery_items(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)",
+    "CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id)"
 ]
 
 async def init_database():
