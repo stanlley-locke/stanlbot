@@ -28,8 +28,7 @@ async def cmd_note(message: Message, state: FSMContext):
 @router.message(NoteState.tags)
 async def process_note_tags(message: Message, state: FSMContext):
     data = await state.get_data()
-    # Pass raw text; validator handles splitting
-    tags = validate_tags(message.text) 
+    tags = validate_tags(message.text.split(",")) if message.text.lower() != "skip" else []
     await save_note(message.from_user.id, data["content"], tags)
     await message.answer("Note saved successfully.")
     await state.clear()
@@ -41,7 +40,7 @@ async def cmd_notes(message: Message):
     if total == 0:
         return await message.answer("No notes found. Use /note to save your first one.")
     text = "<b>Saved Notes</b>\n" + "\n".join(
-        f"{idx+1}. {safe_html(content)}\n<i>{created}</i>" 
+        f"{idx+1}. {safe_html(content)}\n<i>{created}</i>"
         for idx, (_, content, _, created) in enumerate(notes)
     )
     await message.answer(text, reply_markup=build_pagination_kb("notes", 1, max(1, total // ITEMS_PER_PAGE + 1)))

@@ -28,7 +28,7 @@ SYSTEM_INSTRUCTIONS = {
 async def cmd_ask(message: Message):
     """Ask AI a question with optional RAG context"""
     query = message.text.split(maxsplit=1)
-    
+
     if len(query) < 2:
         return await message.answer(
             "🤖 <b>AI Assistant</b>\n\n"
@@ -38,28 +38,28 @@ async def cmd_ask(message: Message):
             "• <code>/ask How do I make pasta?</code>\n\n"
             "If you have saved notes, I'll use them to provide contextual answers!"
         )
-    
+
     question = " ".join(query[1:])
     await message.answer("🤔 Thinking...")
-    
+
     # Get RAG context if enabled
     context = None
     if settings.ENABLE_RAG:
         context = await rag_service.get_context_for_query(message.from_user.id, question)
-    
+
     # Generate response
     response = await llm_service.generate_response(
         prompt=question,
         context=context,
         system_instruction=SYSTEM_INSTRUCTIONS["default"]
     )
-    
+
     if response:
         answer = response[:4000]  # Telegram limit
-        
+
         if context:
             answer += "\n\n<i>(Answer enhanced with your saved notes)</i>"
-        
+
         await message.answer(answer, parse_mode="HTML")
     else:
         await message.answer(
@@ -85,23 +85,23 @@ async def cmd_chat(message: Message):
 async def cmd_summarize(message: Message):
     """Summarize text using AI"""
     text = message.text.split(maxsplit=1)
-    
+
     if len(text) < 2:
         return await message.answer(
             "📝 <b>Summarize</b>\n\n"
             "Usage: <code>/summarize your text here</code>\n\n"
             "Paste any text and I'll create a concise summary!"
         )
-    
+
     content = " ".join(text[1:])
-    
+
     if len(content) < 50:
         return await message.answer("Please provide more text to summarize (at least 50 characters).")
-    
+
     await message.answer("📖 Summarizing...")
-    
+
     summary = await llm_service.summarize_text(content, max_length=150)
-    
+
     if summary:
         await message.answer(
             f"<b>Summary:</b>\n{summary}\n\n"
@@ -119,43 +119,43 @@ async def cmd_rag_status(message: Message):
             "RAG is currently disabled.\n"
             "Enable it by setting ENABLE_RAG=true in your config."
         )
-    
+
     stats = await rag_service.get_stats(message.from_user.id)
-    
+
     text = (
         "📊 <b>Vector Store Status</b>\n\n"
         f"Your documents indexed: <b>{stats.get('total_documents', 0)}</b>\n\n"
         "Your saved notes are automatically indexed for semantic search.\n"
         "Use /ask to get AI answers enhanced with your notes!"
     )
-    
+
     await message.answer(text)
 
 @router.message(Command("teach"))
 async def cmd_teach(message: Message):
     """Manually add knowledge to RAG store"""
     content = message.text.split(maxsplit=1)
-    
+
     if len(content) < 2:
         return await message.answer(
             "📚 <b>Add Knowledge</b>\n\n"
             "Usage: <code>/teach important information to remember</code>\n\n"
             "This adds content to your personal knowledge base for AI-enhanced answers."
         )
-    
+
     knowledge = " ".join(content[1:])
-    
+
     if not settings.ENABLE_RAG:
         return await message.answer(
             "⚠️ RAG is disabled. Enable ENABLE_RAG in config to use this feature."
         )
-    
+
     success = await rag_service.add_document(
         user_id=message.from_user.id,
         content=knowledge,
         metadata={"source": "manual_teach"}
     )
-    
+
     if success:
         await message.answer(
             "✅ Knowledge added!\n\n"
@@ -172,7 +172,7 @@ async def cmd_forget(message: Message):
     """Delete all vector data for user (GDPR)"""
     if not settings.ENABLE_RAG:
         return await message.answer("RAG is disabled.")
-    
+
     # Require confirmation
     args = message.text.split()
     if len(args) < 2 or args[1] != "confirm":
@@ -181,9 +181,9 @@ async def cmd_forget(message: Message):
             "This will permanently delete all your indexed documents.\n"
             "Type <code>/forget confirm</code> to proceed."
         )
-    
+
     success = await rag_service.delete_user_documents(message.from_user.id)
-    
+
     if success:
         await message.answer("✅ All indexed knowledge has been deleted.")
     else:
@@ -195,3 +195,4 @@ async def cmd_forget(message: Message):
 #     # Only respond if user explicitly invoked chat mode recently
 #     # This prevents the bot from responding to every message
 #     pass
+
