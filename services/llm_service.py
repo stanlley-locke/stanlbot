@@ -162,24 +162,29 @@ try:
             """Detect and parse financial transactions from merchant SMS/text."""
             if not self._initialized: return None
             
-            prompt = f"Parse this transaction: {text}"
+            prompt = f"Parse this financial text: {text}"
             system = (
-                "You are a financial parser. Identify if the text is a financial transaction. "
-                "Output JSON: {is_transaction: bool, type: 'income'|'expense', amount: float, category: string, summary: string}. "
-                "Categories: food, transport, utilities, entertainment, shopping, health, education, other. "
-                "Output RAW JSON ONLY. If not a transaction, set is_transaction to false."
+                "You are a strict financial data parser. Identify if the text contains a financial transaction (Payment, Receipt, or Paybill). "
+                "Output RAW JSON ONLY. No markdown, no explanations.\n"
+                "Format: { \"is_transaction\": bool, \"type\": \"income\"|\"expense\", \"amount\": float, \"category\": \"food\"|\"transport\"|\"utilities\"|\"entertainment\"|\"shopping\"|\"health\"|\"education\"|\"other\", \"summary\": \"string\" }\n"
+                "If it is not a transaction, set is_transaction to false."
             )
             
             try:
                 raw = await self.generate_response(prompt, system_instruction=system)
-                if raw:
-                    import json
-                    raw = raw.replace("```json", "").replace("```", "").strip()
-                    data = json.loads(raw)
-                    if data.get("is_transaction"):
-                        return data
+                if not raw: return None
+                
+                # Robust extraction: find the first { and last }
+                import re
+                import json
+                match = re.search(r"(\{.*\})", raw, re.DOTALL)
+                if match:
+                    cleaned = match.group(1).strip()
+                    # Fix common Gemini issues like unescaped newlines in summary
+                    cleaned = re.sub(r'\n', ' ', cleaned) 
+                    return json.loads(cleaned)
             except Exception as e:
-                logger.error(f"Transaction parsing error: {e}")
+                logger.error(f"Transaction parsing error: {e}. Raw response: {raw[:100]}")
             return None
 
     # Singleton instance
