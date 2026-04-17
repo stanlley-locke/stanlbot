@@ -24,10 +24,11 @@ try:
             
             if settings.ENABLE_RAG:
                 try:
-                    # Use local embedding model to save Gemini tokens
+                    # Offload embeddings to Gemini Cloud to save local RAM
                     from chromadb.utils import embedding_functions
-                    self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
-                    # (Note: Default is 'all-MiniLM-L6-v2' which runs LOCALLY)
+                    self._embedding_fn = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
+                        api_key=settings.GEMINI_API_KEY
+                    )
                     
                     # Initialize ChromaDB with persistent storage
                     chroma_path = settings.CHROMA_DB_PATH
@@ -45,7 +46,7 @@ try:
                     )
                     
                     self._initialized = True
-                    logger.info(f"RAG Service initialized with local embeddings at {chroma_path}")
+                    logger.info("RAG Service initialized with Gemini Cloud Embeddings (RAM optimized)")
                     
                 except Exception as e:
                     logger.error(f"Failed to initialize ChromaDB: {e}")

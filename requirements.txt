@@ -23,6 +23,7 @@ aiohttp
 python-dateutil
 pyyaml
 psutil
+Pillow
 
 # Windows compatibility
 colorama

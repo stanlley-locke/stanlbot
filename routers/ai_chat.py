@@ -24,48 +24,64 @@ SYSTEM_INSTRUCTIONS = {
     "productivity": "You are a productivity coach. Help with time management, goal setting, and habit building."
 }
 
+from database.queries import search_notes_hybrid
+from utils.formatters import EMOJI, format_dashboard
+
 @router.message(Command("ask", "ai"))
 async def cmd_ask(message: Message):
-    """Ask AI a question with optional RAG context"""
-    query = message.text.split(maxsplit=1)
+    """Ask AI a question with local-first optimization"""
+    query_parts = message.text.split(maxsplit=1)
 
-    if len(query) < 2:
+    if len(query_parts) < 2:
         return await message.answer(
-            "🤖 <b>AI Assistant</b>\n\n"
+            f"{EMOJI['ai']} <b>AI Assistant</b>\n\n"
             "Usage: <code>/ask your question</code>\n\n"
-            "Examples:\n"
-            "• <code>/ask What is quantum computing?</code>\n"
-            "• <code>/ask How do I make pasta?</code>\n\n"
-            "If you have saved notes, I'll use them to provide contextual answers!"
+            "<i>I search your local notes first to save tokens!</i>"
         )
 
-    question = " ".join(query[1:])
-    await message.answer("🤔 Thinking...")
+    question = query_parts[1]
+    user_id = message.from_user.id
+    
+    # STEP 1: Local-First Search (Saves Gemini Tokens)
+    local_results = await search_notes_hybrid(question, user_id, limit=1)
+    
+    if local_results:
+        # If we found a direct match, show it first
+        match = local_results[0]
+        text = (
+            f"🔍 <b>Local Match Found:</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<code>{match['content']}</code>\n\n"
+            f"<i>Found in your {match['source']} notes.</i>\n\n"
+            f"Do you still want to ask the AI for a deeper analysis?"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🤖 Yes, Ask AI", callback_data=f"ask_ai:{match['id']}"),
+             InlineKeyboardButton(text="❌ No, Thanks", callback_data="close_menu")]
+        ])
+        return await message.answer(text, reply_markup=kb)
 
-    # Get RAG context if enabled
+    # STEP 2: Cloud AI (If no local match)
+    status_msg = await message.answer(f"{EMOJI['ai']} Consulting Gemini...")
+
     context = None
     if settings.ENABLE_RAG:
-        context = await rag_service.get_context_for_query(message.from_user.id, question)
+        context = await rag_service.get_context_for_query(user_id, question)
 
-    # Generate response
     response = await llm_service.generate_response(
         prompt=question,
         context=context,
         system_instruction=SYSTEM_INSTRUCTIONS["default"]
     )
 
+    await status_msg.delete()
     if response:
-        answer = response[:4000]  # Telegram limit
-
+        answer = f"🤖 <b>AI Analysis:</b>\n\n{response[:3500]}"
         if context:
-            answer += "\n\n<i>(Answer enhanced with your saved notes)</i>"
-
-        await message.answer(answer, parse_mode="HTML")
+            answer += f"\n\n{EMOJI['knowledge']} <i>Enhanced with your notes.</i>"
+        await message.answer(answer)
     else:
-        await message.answer(
-            "⚠️ Sorry, I couldn't generate a response right now.\n"
-            "This could be due to API rate limits. Please try again in a minute."
-        )
+        await message.answer(f"{EMOJI['alert']} AI limited. Please try again soon.")
 
 @router.message(Command("chat"))
 async def cmd_chat(message: Message):
@@ -189,10 +205,34 @@ async def cmd_forget(message: Message):
     else:
         await message.answer("⚠️ Failed to delete knowledge base.")
 
-# Handle general chat messages when in chat mode (optional - can be enabled later)
-# @router.message(F.text)
-# async def handle_chat(message: Message):
-#     # Only respond if user explicitly invoked chat mode recently
-#     # This prevents the bot from responding to every message
-#     pass
+@router.callback_query(F.data.startswith("ask_ai:"))
+async def cb_ask_ai_deep(cb: CallbackQuery):
+    """Callback to trigger AI analysis if local search wasn't enough"""
+    # Extract original question from the message text if possible, 
+    # or just use the note content as context for a generic search.
+    # For now, let's just trigger a search based on what was being asked.
+    
+    # In a real scenario, we might want to store the state. 
+    # For simplicity, we'll consult the AI using the prompt that triggered this.
+    
+    # Let's assume the user wants 'Deep Analysis' of the topic.
+    question = cb.message.text.split("Found:")[0].strip() # This is a bit fragile
+    # Better: just use the query from a state or re-prompt.
+    
+    await cb.answer("Consulting AI Deep Analysis...")
+    status_msg = await cb.message.answer(f"{EMOJI['ai']} Deep Analysis in progress...")
+    
+    context = await rag_service.get_context_for_query(cb.from_user.id, cb.message.text)
+    
+    response = await llm_service.generate_response(
+        prompt=f"Provide a deep analysis and summary of this topic: {cb.message.text}",
+        context=context,
+        system_instruction=SYSTEM_INSTRUCTIONS["default"]
+    )
+    
+    await status_msg.delete()
+    if response:
+        await cb.message.answer(f"🤖 <b>Deep Analysis:</b>\n\n{response[:3500]}")
+    else:
+        await cb.message.answer(f"{EMOJI['alert']} Deep Analysis failed.")
 

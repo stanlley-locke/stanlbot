@@ -1,55 +1,33 @@
 import logging
-import asyncio
-from pathlib import Path
 from typing import Optional
+from services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
-try:
-    import easyocr
-    import numpy as np
-    from PIL import Image
-    
-    class OCRService:
-        def __init__(self):
-            self._reader = None
-            self._initialized = False
+class OCRService:
+    """
+    Cloud-based OCR service using Gemini Vision API.
+    Replaces local EasyOCR to save RAM and Disk on Micro instances.
+    """
+    async def extract_text(self, image_path: str) -> Optional[str]:
+        """Extract text from locally saved image using Gemini Cloud Vision"""
+        try:
+            with open(image_path, "rb") as f:
+                image_bytes = f.read()
             
-        async def _get_reader(self):
-            if not self._reader:
-                # Load models in a separate thread
-                # This will download ~100MB on first run
-                self._reader = await asyncio.to_thread(
-                    easyocr.Reader, ['en'], gpu=False
-                )
-                self._initialized = True
-            return self._reader
-
-        async def extract_text(self, image_path: str) -> Optional[str]:
-            """Extract text from image locally"""
-            try:
-                reader = await self._get_reader()
-                
-                # Perform OCR in thread
-                results = await asyncio.to_thread(
-                    reader.readtext, image_path, detail=0
-                )
-                
-                if results:
-                    return " ".join(results)
-                return None
-                
-            except Exception as e:
-                logger.error(f"OCR Error: {e}")
-                return None
-                
-    ocr_service = OCRService()
-
-except ImportError:
-    logger.warning("easyocr not installed. Local OCR disabled.")
-    
-    class OCRService:
-        async def extract_text(self, image_path: str) -> Optional[str]:
+            # Use Gemini Vision for OCR
+            # Prompt is optimized for raw text extraction
+            text = await llm_service.analyze_image(
+                image_bytes=image_bytes,
+                prompt="OCR: Extract all readable text from this image exactly as it appears. Return raw text only."
+            )
+            
+            if text and "OCR Error" not in text:
+                return text
             return None
             
-    ocr_service = OCRService()
+        except Exception as e:
+            logger.error(f"Cloud OCR Error: {e}")
+            return None
+
+ocr_service = OCRService()

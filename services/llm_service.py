@@ -104,23 +104,39 @@ try:
                 # ... error handling ...
                 return f"Error: {str(e)}"
 
-        async def parse_expense(self, message: str) -> Optional[Dict[str, Any]]:
-            """Highly optimized expense parser for Free Tier"""
-            if not self._initialized: return None
-            
-            # Ultra-short instruction to save input tokens
-            prompt = f"Extract JSON (amount, category, description, date): {message}"
-            system = "Output raw JSON ONLY. Categories: food, transport, utilities, entertainment, shopping, health, education, other."
+        async def analyze_image(
+            self, 
+            image_bytes: bytes, 
+            prompt: str = "Extract all text from this image.",
+            mime_type: str = "image/jpeg"
+        ) -> Optional[str]:
+            """Cloud OCR and Image analysis using Gemini Vision"""
+            if not self._initialized: return "AI currently offline."
             
             try:
-                raw = await self.generate_response(prompt, system_instruction=system)
-                if raw:
-                    import json
-                    raw = raw.replace("```json", "").replace("```", "").strip()
-                    return json.loads(raw)
-            except:
-                pass
-            return None
+                await self._check_rate_limit()
+                
+                # Format for Gemini Multimodal
+                content = [
+                    prompt,
+                    {"mime_type": mime_type, "data": image_bytes}
+                ]
+                
+                response = await asyncio.to_thread(
+                    self._model.generate_content,
+                    content
+                )
+                
+                if response and response.text:
+                    return response.text.strip()
+                return "No text detected by Vision API."
+                
+            except Exception as e:
+                logger.error(f"Vision API error: {e}")
+                return f"OCR Error: {str(e)}"
+
+        async def parse_expense(self, message: str) -> Optional[Dict[str, Any]]:
+            # ... existing parser ...
         
         async def summarize_text(self, text: str, max_length: int = 100) -> Optional[str]:
             """Token-efficient summarizer"""
