@@ -16,7 +16,8 @@ from database.queries import (
     set_budget, get_all_budgets, get_budget_status
 )
 from services.llm_service import llm_service
-from utils.formatters import safe_html, EMOJI
+router = Router()
+logger = logging.getLogger(__name__)
 
 @router.callback_query(F.data == "menu:finance")
 async def cb_finance_menu(cb: CallbackQuery):
