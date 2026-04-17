@@ -44,15 +44,53 @@ async def assign_deadline(message: Message, state: FSMContext):
         await message.answer("Invalid date format. Please try again (e.g., Friday 4pm, Nov 15).")
         logger.warning(f"Date parse error: {e}")
 
+from services.llm_service import llm_service
+from utils.formatters import EMOJI
+
 @router.message(Command("assignments"))
 async def cmd_assignments(message: Message):
     items = await get_assignments(message.from_user.id, status="pending")
     if not items:
-        return await message.answer("No pending assignments.")
+        return await message.answer(f"{EMOJI['success']} No pending assignments!")
+    
     kb = []
+    text = f"{EMOJI['academic']} <b>Pending Assignments</b>\n\n"
     for item in items:
-        kb.append([InlineKeyboardButton(text=f"[ ] {item[2]}", callback_data=f"complete:{item[0]}")])
-    await message.answer("Pending Assignments:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        # item: (id, user_id, title, deadline, status, created_at)
+        deadline_str = item[3][:10] if isinstance(item[3], str) else item[3].strftime("%Y-%m-%d")
+        text += f"• <b>{item[2]}</b>\n  └ ⏰ Due: {deadline_str}\n\n"
+        kb.append([InlineKeyboardButton(text=f"✅ Complete: {item[2][:15]}...", callback_data=f"complete:{item[0]}")])
+    
+    kb.append([InlineKeyboardButton(text="🧠 AI Prioritize", callback_data="academic:prioritize")])
+    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@router.message(Command("prioritize"))
+@router.callback_query(F.data == "academic:prioritize")
+async def cmd_prioritize(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    target = event if isinstance(event, Message) else event.message
+    
+    items = await get_assignments(user_id, status="pending")
+    if not items:
+        return await target.answer("Nothing to prioritize!")
+
+    status_msg = await target.answer(f"{EMOJI['ai']} Analyzing workload...")
+    
+    # Prepare data for LLM
+    task_list = "\n".join([f"- {i[2]} (Due: {i[3]})" for i in items])
+    sys_prompt = "You are a study coach. Prioritize these tasks based on urgency and likely effort. Keep it concise."
+    
+    recommendation = await llm_service.generate_response(
+        prompt=f"Prioritize these assignments:\n{task_list}",
+        system_instruction=sys_prompt
+    )
+    
+    await status_msg.delete()
+    await target.answer(
+        f"🧠 <b>AI Study Plan</b>\n\n"
+        f"{recommendation}\n\n"
+        f"<i>Stay focused! You got this!</i>"
+    )
 
 @router.callback_query(F.data.startswith("complete:"))
 async def cb_complete(cb: CallbackQuery):

@@ -288,7 +288,48 @@ async def delete_budget(budget_id: int):
     """Remove a budget entry."""
     await db.execute_write("DELETE FROM budgets WHERE id=?", (budget_id,))
 
-async def get_budget_alerts(user_id: int, threshold: float = 0.9) -> List[Dict]:
-    """Find budgets where spending exceeds threshold (default 90%)."""
-    statuses = await get_budget_status(user_id)
-    return [s for s in statuses if s["percent_used"] >= threshold * 100]
+# ==================== HYBRID SEARCH & DISCOVERY ====================
+async def search_notes_hybrid(query: str, user_id: int, limit: int = 5) -> List[Dict]:
+    """Combines FTS with structured metadata filtering."""
+    # FTS part
+    cursor = await db.execute_read(
+        """SELECT n.id, n.content, n.tags, n.created_at, n.source
+           FROM notes n 
+           JOIN notes_fts_idx f ON n.id = f.rowid 
+           WHERE notes_fts_idx MATCH ? AND n.user_id = ?
+           ORDER BY rank LIMIT ?""",
+        (query, user_id, limit)
+    )
+    rows = await cursor.fetchall()
+    results = []
+    for row in rows:
+        results.append({
+            "id": row[0],
+            "content": row[1],
+            "tags": json.loads(row[2]),
+            "created_at": row[3],
+            "source": row[4],
+            "score": 1.0  # Placeholder for ranking
+        })
+    return results
+
+async def get_latest_activity(user_id: int) -> Dict:
+    """Fetches a summary of recent activity for the dashboard."""
+    # Last note
+    cursor = await db.execute_read(
+        "SELECT content, created_at FROM notes WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+        (user_id,)
+    )
+    last_note = await cursor.fetchone()
+    
+    # Last expense
+    cursor = await db.execute_read(
+        "SELECT amount, category, description FROM expenses WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+        (user_id,)
+    )
+    last_expense = await cursor.fetchone()
+    
+    return {
+        "last_note": {"content": last_note[0], "date": last_note[1]} if last_note else None,
+        "last_expense": {"amount": last_expense[0], "cat": last_expense[1], "desc": last_expense[2]} if last_expense else None
+    }

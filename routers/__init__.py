@@ -8,9 +8,10 @@ from .gamification import router as gamification_router
 from .knowledge_base import router as knowledge_base_router
 from .finance import router as finance_router
 from .ai_chat import router as ai_chat_router
+from .media import router as media_router
 
 ALL_ROUTERS = [
     start_router, academic_router, kitchen_router, chat_companion_router,
     devops_router, community_router, gamification_router, knowledge_base_router,
-    finance_router, ai_chat_router
+    finance_router, ai_chat_router, media_router
 ]

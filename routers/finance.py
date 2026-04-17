@@ -35,7 +35,9 @@ async def cmd_expense(message: Message, state: FSMContext):
     args = message.text.split(maxsplit=1)
 
     # If message has content, try LLM parsing first
-    if len(args) > 1 and settings.ENABLE_RAG:
+    if len(args) > 1:
+        # Show "Parsing..." only if it's likely an LLM case
+        status_msg = await message.answer(f"{EMOJI['ai']} Parsing expense...")
         expense_data = await llm_service.parse_expense(args[1])
 
         if expense_data:
@@ -46,166 +48,66 @@ async def cmd_expense(message: Message, state: FSMContext):
                 description=expense_data['description'],
                 expense_date=expense_data.get('date', datetime.now().strftime('%Y-%m-%d'))
             )
-
+            await status_msg.delete()
             return await message.answer(
-                f"Expense logged!\n"
-                f"Amount: ${expense_data['amount']:.2f}\n"
-                f"Category: {expense_data['category']}\n"
-                f"{expense_data['description']}"
+                f"{EMOJI['success']} <b>Expense Logged!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"💰 <b>Amount:</b> ${expense_data['amount']:.2f}\n"
+                f"🏷 <b>Category:</b> {expense_data['category']}\n"
+                f"📝 <b>Note:</b> {expense_data['description']}\n"
+                f"📅 <b>Date:</b> {expense_data.get('date', 'Today')}"
             )
-
-    # Manual entry flow
-    if len(args) > 1:
-        # Quick format: /expense 15 food lunch
-        parts = args[1].split()
-        if len(parts) >= 3:
-            try:
-                amount = float(parts[0])
-                category = parts[1] if parts[1] in CATEGORIES else "other"
-                description = " ".join(parts[2:])
-
-                await add_expense(
-                    user_id=message.from_user.id,
-                    amount=amount,
-                    category=category,
-                    description=description,
-                    expense_date=datetime.now().strftime('%Y-%m-%d')
-                )
-
-                return await message.answer(
-                    f"Expense logged: ${amount:.2f} - {category} - {description}"
-                )
-            except ValueError:
-                pass
+        await status_msg.delete()
 
     await message.answer(
-        "Add Expense\n\n"
-        "Quick format:\n"
-        "/expense 15.50 food Lunch at cafe\n\n"
-        "Or send just the amount to start guided entry:"
+        f"{EMOJI['finance']} <b>Add Expense</b>\n\n"
+        "Just tell me what you spent! <i>(e.g., '15 on coffee')</i>\n"
+        "Or use guided entry by sending the amount:",
+        parse_mode="HTML"
     )
     await state.set_state(ExpenseState.amount)
 
-@router.message(ExpenseState.amount)
-async def process_amount(message: Message, state: FSMContext):
-    try:
-        amount = float(message.text.strip())
-        if amount <= 0:
-            return await message.answer("Please enter a positive amount:")
-
-        await state.update_data(amount=amount)
-        await message.answer(
-            f"Amount: ${amount:.2f}\n"
-            f"Choose category:\n" +
-            "\n".join(f"{i+1}. {cat}" for i, cat in enumerate(CATEGORIES))
-        )
-        await state.set_state(ExpenseState.category)
-    except ValueError:
-        await message.answer("Invalid amount. Please enter a number:")
-
-@router.message(ExpenseState.category)
-async def process_category(message: Message, state: FSMContext):
-    try:
-        cat_idx = int(message.text.strip()) - 1
-        if 0 <= cat_idx < len(CATEGORIES):
-            category = CATEGORIES[cat_idx]
-        else:
-            category = message.text.strip().lower()
-            if category not in CATEGORIES:
-                category = "other"
-
-        await state.update_data(category=category)
-        await message.answer("Enter description (or 'skip'):")
-        await state.set_state(ExpenseState.description)
-    except ValueError:
-        category = message.text.strip().lower()
-        if category not in CATEGORIES:
-            category = "other"
-        await state.update_data(category=category)
-        await message.answer("Enter description (or 'skip'):")
-        await state.set_state(ExpenseState.description)
-
-@router.message(ExpenseState.description)
-async def process_description(message: Message, state: FSMContext):
-    description = message.text.strip() if message.text.lower() != "skip" else "No description"
-    await state.update_data(description=description)
-
-    await message.answer("Enter date (YYYY-MM-DD) or 'today':")
-    await state.set_state(ExpenseState.date)
-
-@router.message(ExpenseState.date)
-async def process_date(message: Message, state: FSMContext):
-    data = await state.get_data()
-
-    if message.text.lower() == "today":
-        expense_date = datetime.now().strftime('%Y-%m-%d')
-    else:
-        try:
-            datetime.strptime(message.text.strip(), '%Y-%m-%d')
-            expense_date = message.text.strip()
-        except ValueError:
-            await message.answer("Invalid date format. Using today:")
-            expense_date = datetime.now().strftime('%Y-%m-%d')
-
-    await add_expense(
-        user_id=message.from_user.id,
-        amount=data['amount'],
-        category=data['category'],
-        description=data['description'],
-        expense_date=expense_date
-    )
-
-    await message.answer(
-        f"Expense saved!\n"
-        f"${data['amount']:.2f} - {data['category']}\n"
-        f"{data['description']} ({expense_date})"
-    )
-    await state.clear()
-
 @router.message(Command("expenses", "spending"))
 async def cmd_expenses(message: Message):
-    """View expenses summary"""
+    """View expenses summary with premium formatting"""
     args = message.text.split()
     period = args[1] if len(args) > 1 else "month"
 
     now = datetime.now()
-    if period == "week":
-        start_date = (now - timedelta(days=7)).strftime('%Y-%m-%d')
-    elif period == "month":
-        start_date = now.replace(day=1).strftime('%Y-%m-%d')
-    else:
-        start_date = now.replace(day=1).strftime('%Y-%m-%d')
-
+    start_date = now.replace(day=1).strftime('%Y-%m-%d') if period == "month" else (now - timedelta(days=7)).strftime('%Y-%m-%d')
     end_date = now.strftime('%Y-%m-%d')
 
-    expenses = await get_expenses_by_period(
-        user_id=message.from_user.id,
-        start_date=start_date,
-        end_date=end_date
-    )
+    expenses = await get_expenses_by_period(message.from_user.id, start_date, end_date)
 
     if not expenses:
         return await message.answer(f"No expenses recorded this {period}.")
 
     total = sum(exp[1] for exp in expenses)
+    summary = await get_expense_summary(message.from_user.id, now.strftime('%Y-%m'))
 
-    # Get category breakdown
-    month_str = now.strftime('%Y-%m')
-    summary = await get_expense_summary(message.from_user.id, month_str)
-
-    text = f"Expenses ({period})\n\n"
-    text += f"Total: ${total:.2f}\n\n"
-    text += "By Category:\n"
-
+    text = f"📊 <b>Spending Report ({period.capitalize()})</b>\n"
+    text += f"━━━━━━━━━━━━━━━━━━\n"
+    text += f"💵 <b>Total Spent:</b> ${total:.2f}\n\n"
+    
+    text += "<b>Category Breakdown:</b>\n"
     for cat, amount in sorted(summary.items(), key=lambda x: x[1], reverse=True):
-        percentage = (amount / total * 100) if total > 0 else 0
-        text += f"- {cat.capitalize()}: ${amount:.2f} ({percentage:.1f}%)\n"
+        percent = (amount / total * 100) if total > 0 else 0
+        text += f"<code>{cat.capitalize():<12}</code> ${amount:>7.2f} ({percent:>2.0f}%)\n"
 
-    text += f"\nLast 5 transactions:\n"
+    text += f"\n<b>Recent Transactions:</b>\n"
     for _, amount, category, desc, date, _ in expenses[:5]:
-        text += f"  {date}: ${amount:.2f} - {category} ({desc})\n"
+        text += f"• <code>{date[5:]}</code> ${amount:.2f} | <i>{desc[:20]}</i>\n"
 
     await message.answer(text)
+
+@router.message(Command("savings", "goals"))
+async def cmd_savings(message: Message):
+    """Placeholder for Savings feature"""
+    await message.answer(
+        f"🎯 <b>Savings Goals</b>\n\n"
+        "Track progress towards your big purchases!\n"
+        "<i>Coming soon in the next update.</i>"
+    )
 
 @router.message(Command("budget"))
 async def cmd_budget(message: Message):

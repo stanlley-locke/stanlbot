@@ -20,9 +20,15 @@ try:
             self._initialized = False
             self._client = None
             self._collection = None
+            self._embedding_fn = None
             
-            if settings.ENABLE_RAG and settings.GEMINI_API_KEY:
+            if settings.ENABLE_RAG:
                 try:
+                    # Use local embedding model to save Gemini tokens
+                    from chromadb.utils import embedding_functions
+                    self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+                    # (Note: Default is 'all-MiniLM-L6-v2' which runs LOCALLY)
+                    
                     # Initialize ChromaDB with persistent storage
                     chroma_path = settings.CHROMA_DB_PATH
                     chroma_path.mkdir(parents=True, exist_ok=True)
@@ -34,16 +40,17 @@ try:
                     
                     self._collection = self._client.get_or_create_collection(
                         name="stanlbot_knowledge",
-                        metadata={"hnsw:space": "cosine"}
+                        metadata={"hnsw:space": "cosine"},
+                        embedding_function=self._embedding_fn
                     )
                     
                     self._initialized = True
-                    logger.info(f"RAG Service initialized with ChromaDB at {chroma_path}")
+                    logger.info(f"RAG Service initialized with local embeddings at {chroma_path}")
                     
                 except Exception as e:
                     logger.error(f"Failed to initialize ChromaDB: {e}")
             else:
-                logger.info("RAG disabled or GEMINI_API_KEY not configured")
+                logger.info("RAG disabled in settings")
         
         def _generate_id(self, content: str, user_id: int) -> str:
             """Generate unique ID for document"""
@@ -56,12 +63,10 @@ try:
             metadata: Optional[Dict[str, Any]] = None
         ) -> bool:
             """Add document to vector store"""
-            if not self._initialized:
-                return False
+            if not self._initialized: return False
             
             try:
                 doc_id = self._generate_id(content, user_id)
-                
                 doc_metadata = {
                     "user_id": str(user_id),
                     "source": metadata.get("source", "manual") if metadata else "manual",
@@ -69,15 +74,14 @@ try:
                     **(metadata or {})
                 }
                 
-                self._collection.upsert(
+                # Run in thread to avoid blocking event loop
+                await asyncio.to_thread(
+                    self._collection.upsert,
                     ids=[doc_id],
                     documents=[content],
                     metadatas=[doc_metadata]
                 )
-                
-                logger.debug(f"Added document for user {user_id}")
                 return True
-                
             except Exception as e:
                 logger.error(f"Error adding document: {e}")
                 return False
@@ -89,15 +93,16 @@ try:
             top_k: Optional[int] = None
         ) -> List[Dict[str, Any]]:
             """Search for similar documents with user isolation"""
-            if not self._initialized:
-                return []
+            if not self._initialized: return []
             
             top_k = top_k or settings.RAG_TOP_K
             
             try:
-                results = self._collection.query(
+                # Run in thread to avoid blocking event loop
+                results = await asyncio.to_thread(
+                    self._collection.query,
                     query_texts=[query],
-                    n_results=top_k * 2,  # Get more for filtering
+                    n_results=top_k,
                     where={"user_id": str(user_id)},
                     include=["documents", "metadatas", "distances"]
                 )
@@ -114,8 +119,7 @@ try:
                         'distance': results['distances'][0][i] if results['distances'] else 0
                     })
                 
-                return formatted_results[:top_k]
-                
+                return formatted_results
             except Exception as e:
                 logger.error(f"Error searching documents: {e}")
                 return []

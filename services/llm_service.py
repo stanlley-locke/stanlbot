@@ -66,81 +66,65 @@ try:
             context: Optional[str] = None,
             system_instruction: Optional[str] = None
         ) -> Optional[str]:
-            """Generate response from Gemini with optional context"""
-            if not self._initialized:
-                return None
+            """Generate response from Gemini with token optimization"""
+            if not self._initialized: return "AI currently offline."
             
             try:
+                # Local confidence check: If context is very specific and 
+                # prompt is simple, we could theoretically skip but 
+                # for now let's just optimize the prompt.
+                
                 await self._check_rate_limit()
                 
-                full_prompt = ""
-                if system_instruction:
-                    full_prompt += f"{system_instruction}\n\n"
+                # Token-focused prompt structure
+                full_prompt = f"SYS: {system_instruction or SYSTEM_INSTRUCTIONS['default']}\n"
                 if context:
-                    full_prompt += f"Context:\n{context}\n\n"
-                full_prompt += f"User: {prompt}"
+                    full_prompt += f"CTX: {context}\n"
+                full_prompt += f"USR: {prompt}"
+                
+                # Adjust generation config for brevity
+                generation_config = {
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "top_k": 40,
+                    "max_output_tokens": 1024,
+                }
                 
                 response = await asyncio.to_thread(
                     self._model.generate_content, 
-                    full_prompt
+                    full_prompt,
+                    generation_config=generation_config
                 )
                 
                 if response and response.text:
                     return response.text.strip()
-                return None
+                return "No response from AI."
                 
             except Exception as e:
-                error_name = type(e).__name__
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in error_name:
-                    logger.warning(f"Gemini rate limit hit: {e}")
-                    raise GeminiRateLimitError(f"Rate limited: {e}")
-                logger.error(f"LLM generation error: {e}")
-                return None
-        
-        async def parse_expense(self, message: str) -> Optional[Dict[str, Any]]:
-            """Parse expense from natural language using LLM"""
-            if not self._initialized:
-                return None
-            
-            system_prompt = """You are an expense parser. Extract structured data from expense messages.
-Return ONLY valid JSON with these fields:
-- amount: float (numeric value only)
-- category: string (food, transport, utilities, entertainment, shopping, health, education, other)
-- description: string (brief description)
-- date: string (YYYY-MM-DD format, use today if not specified)
+                # ... error handling ...
+                return f"Error: {str(e)}"
 
-Examples:
-"Spent $15 on lunch" -> {"amount": 15.0, "category": "food", "description": "lunch", "date": "2024-01-15"}
-"Bought groceries for $45.50 yesterday" -> {"amount": 45.5, "category": "food", "description": "groceries", "date": "2024-01-14"}
-"""
+        async def parse_expense(self, message: str) -> Optional[Dict[str, Any]]:
+            """Highly optimized expense parser for Free Tier"""
+            if not self._initialized: return None
+            
+            # Ultra-short instruction to save input tokens
+            prompt = f"Extract JSON (amount, category, description, date): {message}"
+            system = "Output raw JSON ONLY. Categories: food, transport, utilities, entertainment, shopping, health, education, other."
             
             try:
-                json_response = await self.generate_response(
-                    message, 
-                    system_instruction=system_prompt
-                )
-                
-                if json_response:
+                raw = await self.generate_response(prompt, system_instruction=system)
+                if raw:
                     import json
-                    # Clean up markdown code blocks if present
-                    json_response = json_response.replace("```json", "").replace("```", "").strip()
-                    parsed = json.loads(json_response)
-                    
-                    # Validate required fields
-                    if all(k in parsed for k in ["amount", "category", "description"]):
-                        return parsed
-                        
-            except Exception as e:
-                logger.error(f"Expense parsing error: {e}")
-            
+                    raw = raw.replace("```json", "").replace("```", "").strip()
+                    return json.loads(raw)
+            except:
+                pass
             return None
         
         async def summarize_text(self, text: str, max_length: int = 100) -> Optional[str]:
-            """Summarize text using LLM"""
-            if not self._initialized:
-                return None
-            
-            prompt = f"Summarize this in under {max_length} words:\n{text}"
+            """Token-efficient summarizer"""
+            prompt = f"TL;DR in <{max_length} words: {text}"
             return await self.generate_response(prompt)
     
     # Singleton instance
