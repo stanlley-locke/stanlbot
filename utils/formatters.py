@@ -73,17 +73,18 @@ def build_main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text=f"{EMOJI['academic']} Academic", callback_data="menu:academic"),
          InlineKeyboardButton(text=f"{EMOJI['kitchen']} Kitchen", callback_data="menu:kitchen")],
-        [InlineKeyboardButton(text=f"{EMOJI['notes']} Notes", callback_data="menu:notes")]
+        [InlineKeyboardButton(text=f"{EMOJI['finance']} Finance", callback_data="menu:finance"),
+         InlineKeyboardButton(text=f"{EMOJI['knowledge']} Notes", callback_data="menu:notes")]
     ]
     
-    # Add DevOps only for admins - shared row with Notes for space efficiency
+    # Add DevOps only for admins - shared row for symmetry
     if is_admin:
         rows[1].append(InlineKeyboardButton(text=f"{EMOJI['devops']} DevOps", callback_data="menu:devops"))
     
     # Add bottom rows
     rows.append([InlineKeyboardButton(text=f"{EMOJI['settings']} Settings", callback_data="menu:settings"),
                 InlineKeyboardButton(text=f"{EMOJI['help']} Help", callback_data="menu:help")])
-    rows.append([InlineKeyboardButton(text="💬 Ask AI Anything", callback_data="menu:ai_chat")])
+    rows.append([InlineKeyboardButton(text="🤖 Ask AI Anything", callback_data="menu:ai_chat")])
     
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

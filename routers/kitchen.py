@@ -83,7 +83,7 @@ async def cmd_grocery(event: Message | CallbackQuery):
         text += "\n".join(f"• <code>{qty}x</code> {safe_html(name)}" for name, qty in items)
         
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧠 Suggest Recipe", callback_data="kitchen:suggest")],
+            [InlineKeyboardButton(text="🪄 AI Recipe", callback_data="kitchen:recipe_help")],
             [InlineKeyboardButton(text="🧹 Clear List", callback_data="grocery:clear")],
             [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
         ])
@@ -92,6 +92,10 @@ async def cmd_grocery(event: Message | CallbackQuery):
             return await event.answer(text, reply_markup=kb)
         else:
             return await event.message.edit_text(text, reply_markup=kb)
+
+@router.callback_query(F.data == "kitchen:recipe_help")
+async def cb_recipe_help(cb: CallbackQuery):
+    await cb.answer("Tip: Use /recipe <ingredients> for AI meal suggestions!", show_alert=True)
     
     await add_grocery_item(user_id, args[1].strip())
     await event.answer(f"{EMOJI['success']} Added <b>{args[1]}</b> to list.")

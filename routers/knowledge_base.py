@@ -45,12 +45,20 @@ async def cmd_notes(event: Message | CallbackQuery):
         for idx, (_, content, _, created) in enumerate(notes)
     ) if total > 0 else "No notes found. Use /note to save your first one."
     
-    kb = build_pagination_kb("notes", 1, max(1, total // ITEMS_PER_PAGE + 1)) if total > 0 else None
+    kb = build_pagination_kb("notes", 1, max(1, total // ITEMS_PER_PAGE + 1)) if total > 0 else InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]])
     
+    if total > 0:
+        # Add Find shortcut to pagination
+        kb.inline_keyboard.insert(0, [InlineKeyboardButton(text="🔍 AI Find", callback_data="notes:find_help")])
+
     if isinstance(event, CallbackQuery):
         await event.message.edit_text(text, reply_markup=kb)
     else:
         await event.answer(text, reply_markup=kb)
+
+@router.callback_query(F.data == "notes:find_help")
+async def cb_find_help(cb: CallbackQuery):
+    await cb.answer("Tip: Use /find <query> to search notes & chats semanticly!", show_alert=True)
 
 from services.rag_service import rag_service
 from utils.formatters import EMOJI
@@ -65,11 +73,7 @@ async def cmd_find(message: Message):
     status_msg = await message.answer(f"🔍 Searching local and semantic memory...")
     
     user_id = message.from_user.id
-    
-    # 1. Local FTS Search
     local_results = await search_notes_fts(query, user_id, limit=3)
-    
-    # 2. Semantic Search
     semantic_results = await rag_service.search_similar(user_id, query, top_k=3)
     
     await status_msg.delete()
@@ -81,7 +85,6 @@ async def cmd_find(message: Message):
     text += "━━━━━━━━━━━━━━━━━━\n\n"
     
     seen_content = set()
-    
     if local_results:
         text += "<b>📍 Direct Matches (Local)</b>\n"
         for _, content, _, _ in local_results:
@@ -98,4 +101,7 @@ async def cmd_find(message: Message):
                 text += f"• {safe_html(res['content'][:200])}...\n\n"
                 seen_content.add(clean_content)
                 
-    await message.answer(text)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="« Back to Notes", callback_data="menu:notes")]
+    ])
+    await message.answer(text, reply_markup=kb)

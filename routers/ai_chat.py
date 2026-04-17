@@ -5,7 +5,7 @@ Commands: /ask, /chat, /summarize, /rag-status
 """
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 
 from config import settings

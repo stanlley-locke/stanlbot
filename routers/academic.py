@@ -68,6 +68,7 @@ async def cmd_assignments(event: Message | CallbackQuery):
         kb.append([InlineKeyboardButton(text=f"✅ Complete: {item[2][:15]}...", callback_data=f"complete:{item[0]}")])
     
     kb.append([InlineKeyboardButton(text="🧠 AI Prioritize", callback_data="academic:prioritize")])
+    kb.append([InlineKeyboardButton(text="🧠 AI Breakdown", callback_data="academic:breakdown_help")])
     kb.append([InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")])
     
     if isinstance(event, Message):
@@ -131,6 +132,12 @@ async def cmd_breakdown(message: Message):
         f"{breakdown}\n\n"
         f"<i>Tip: Follow these steps to finish faster!</i>"
     )
+
+from utils.formatters import EMOJI, safe_html
+
+@router.callback_query(F.data == "academic:breakdown_help")
+async def cb_breakdown_help(cb: CallbackQuery):
+    await cb.answer("Tip: Use /breakdown <topic> for AI study steps!", show_alert=True)
 
 @router.callback_query(F.data.startswith("complete:"))
 async def cb_complete(cb: CallbackQuery):

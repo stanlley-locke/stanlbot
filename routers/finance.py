@@ -16,9 +16,25 @@ from database.queries import (
     set_budget, get_all_budgets, get_budget_status
 )
 from services.llm_service import llm_service
-from utils.formatters import safe_html
+from utils.formatters import safe_html, EMOJI
 
-router = Router()
+@router.callback_query(F.data == "menu:finance")
+async def cb_finance_menu(cb: CallbackQuery):
+    """Show the interactive Finance dashboard."""
+    text = (
+        f"{EMOJI['finance']} <b>Personal Finance Hub</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        "Welcome to your AI-powered wallet! I can help you tracking expenses, managing budgets, and analyzing your spending habits.\n\n"
+        "<b>Available Features:</b>\n"
+        "• 💰 <b>Log Spending</b>: Just type <i>'Spent 20 on groceries'</i>\n"
+        "• 📊 <b>Visual Charts</b>: Use /summary_chart\n"
+        "• 🧠 <b>AI Review</b>: Use /budget_review\n"
+        "• 📉 <b>Budgets</b>: Set monthly limits with /budget"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="« Back to Menu", callback_data="menu:back")]
+    ])
+    await cb.message.edit_text(text, reply_markup=kb)
 logger = logging.getLogger(__name__)
 
 CATEGORIES = ["food", "transport", "utilities", "entertainment", "shopping", "health", "education", "other"]
