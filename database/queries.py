@@ -288,6 +288,11 @@ async def delete_budget(budget_id: int):
     """Remove a budget entry."""
     await db.execute_write("DELETE FROM budgets WHERE id=?", (budget_id,))
 
+async def get_budget_alerts(user_id: int, threshold: float = 0.9) -> List[Dict]:
+    """Find budgets where spending exceeds threshold (default 90%)."""
+    statuses = await get_budget_status(user_id)
+    return [s for s in statuses if s["percent_used"] >= threshold * 100]
+
 # ==================== HYBRID SEARCH & DISCOVERY ====================
 async def search_notes_hybrid(query: str, user_id: int, limit: int = 5) -> List[Dict]:
     """Combines FTS with structured metadata filtering."""
