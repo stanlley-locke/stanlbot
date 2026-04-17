@@ -48,6 +48,17 @@ SCHEMA_SQL = [
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
         item TEXT NOT NULL, quantity INTEGER DEFAULT 1, completed INTEGER DEFAULT 0
     )""",
+    """CREATE TABLE IF NOT EXISTS budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id),
+        category TEXT NOT NULL,
+        amount REAL NOT NULL,
+        period TEXT DEFAULT 'monthly',
+        start_date TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, category, period, start_date)
+    )""",  
     """CREATE TABLE IF NOT EXISTS expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id),
         amount REAL NOT NULL, category TEXT NOT NULL, description TEXT,

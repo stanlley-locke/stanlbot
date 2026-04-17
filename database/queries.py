@@ -6,6 +6,7 @@ from typing import Optional, List, Tuple, Dict
 
 logger = logging.getLogger(__name__)
 
+# ==================== USER MANAGEMENT ====================
 async def upsert_user(user_id: int, username: Optional[str], first_name: str):
     await db.execute_write(
         "INSERT INTO users (id, username, first_name) VALUES (?, ?, ?) "
@@ -20,14 +21,14 @@ async def get_user_profile(user_id: int) -> Optional[Tuple]:
 async def set_user_language(user_id: int, lang: str):
     await db.execute_write("UPDATE users SET language = ? WHERE id = ?", (lang, user_id))
 
+# ==================== NOTES ====================
 async def save_note(user_id: int, content: str, tags: List[str] = None, source: str = "manual"):
     await db.execute_write(
         "INSERT INTO notes (user_id, content, tags, source) VALUES (?, ?, ?, ?)",
         (user_id, content, json.dumps(tags or []), source)
     )
-    # Sync to FTS table
     cursor = await db.execute_read("SELECT last_insert_rowid()")
-    row = await cursor.fetchone()  # Await the async fetchone
+    row = await cursor.fetchone()
     if row:
         note_id = row[0]
         await db.execute_write(
@@ -53,6 +54,7 @@ async def search_notes_fts(query: str, user_id: int, limit: int = 10) -> List[Tu
     )
     return await cursor.fetchall()
 
+# ==================== ASSIGNMENTS ====================
 async def add_assignment(user_id: int, title: str, deadline: datetime):
     await db.execute_write(
         "INSERT INTO assignments (user_id, title, deadline) VALUES (?, ?, ?)",
@@ -75,6 +77,7 @@ async def get_assignments(user_id: int, status: str = None) -> List[Tuple]:
 async def update_assignment_status(assignment_id: int, status: str):
     await db.execute_write("UPDATE assignments SET status = ? WHERE id = ?", (status, assignment_id))
 
+# ==================== REMINDERS ====================
 async def add_reminder(user_id: int, message: str, trigger_time: datetime):
     await db.execute_write(
         "INSERT INTO reminders (user_id, message, trigger_time) VALUES (?, ?, ?)",
@@ -91,6 +94,7 @@ async def get_due_reminders(current_time: datetime) -> List[Tuple]:
 async def mark_reminder_sent(reminder_id: int):
     await db.execute_write("UPDATE reminders SET sent = 1 WHERE id = ?", (reminder_id,))
 
+# ==================== WHATSAPP INDEX ====================
 async def index_whatsapp_messages(user_id: int, messages: List[dict], file_path: str):
     values = [(user_id, m["sender"], m["content"], m.get("timestamp"), file_path) for m in messages]
     await db.execute_write(
@@ -105,6 +109,7 @@ async def search_whatsapp_messages(user_id: int, query: str, limit: int = 5) -> 
     )
     return await cursor.fetchall()
 
+# ==================== GROCERY ====================
 async def add_grocery_item(user_id: int, item: str, quantity: int = 1):
     await db.execute_write(
         "INSERT INTO grocery_items (user_id, item, quantity) VALUES (?, ?, ?) "
@@ -122,17 +127,14 @@ async def get_grocery_list(user_id: int) -> List[Tuple]:
 async def clear_grocery_list(user_id: int):
     await db.execute_write("DELETE FROM grocery_items WHERE user_id=?", (user_id,))
 
+# ==================== GAMIFICATION ====================
 async def get_user_stats(user_id: int) -> dict:
-    cursor = await db.execute_read(
-        "SELECT COUNT(*) FROM notes WHERE user_id=?", (user_id,)
-    )
+    cursor = await db.execute_read("SELECT COUNT(*) FROM notes WHERE user_id=?", (user_id,))
     notes_count = (await cursor.fetchone())[0]
-    
     cursor = await db.execute_read(
         "SELECT COUNT(*) FROM assignments WHERE user_id=? AND status='completed'", (user_id,)
     )
     completed = (await cursor.fetchone())[0]
-    
     return {"notes": notes_count, "completed_assignments": completed}
 
 async def increment_points(user_id: int, amount: int = 1):
@@ -143,48 +145,33 @@ async def get_user_points(user_id: int) -> int:
     row = await cursor.fetchone()
     return row[0] if row else 0
 
-# Expense tracking queries
-async def add_expense(
-    user_id: int, 
-    amount: float, 
-    category: str, 
-    description: str, 
-    expense_date: str
-):
+# ==================== EXPENSE TRACKING ====================
+async def add_expense(user_id: int, amount: float, category: str, description: str, expense_date: str):
     await db.execute_write(
         "INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (?, ?, ?, ?, ?)",
         (user_id, amount, category, description, expense_date)
     )
 
-async def get_expenses_by_period(
-    user_id: int, 
-    start_date: str, 
-    end_date: str,
-    category: Optional[str] = None
-) -> List[Tuple]:
+async def get_expenses_by_period(user_id: int, start_date: str, end_date: str, category: Optional[str] = None) -> List[Tuple]:
     if category:
         cursor = await db.execute_read(
             """SELECT id, amount, category, description, expense_date, created_at 
-               FROM expenses 
-               WHERE user_id=? AND expense_date BETWEEN ? AND ? AND category=?
+               FROM expenses WHERE user_id=? AND expense_date BETWEEN ? AND ? AND category=?
                ORDER BY expense_date DESC""",
             (user_id, start_date, end_date, category)
         )
     else:
         cursor = await db.execute_read(
             """SELECT id, amount, category, description, expense_date, created_at 
-               FROM expenses 
-               WHERE user_id=? AND expense_date BETWEEN ? AND ?
+               FROM expenses WHERE user_id=? AND expense_date BETWEEN ? AND ?
                ORDER BY expense_date DESC""",
             (user_id, start_date, end_date)
         )
     return await cursor.fetchall()
 
 async def get_expense_summary(user_id: int, month: str) -> Dict[str, float]:
-    """Get total expenses by category for a given month (YYYY-MM)"""
     cursor = await db.execute_read(
-        """SELECT category, SUM(amount) as total
-           FROM expenses
+        """SELECT category, SUM(amount) as total FROM expenses
            WHERE user_id=? AND strftime('%Y-%m', expense_date) = ?
            GROUP BY category""",
         (user_id, month)
@@ -192,64 +179,116 @@ async def get_expense_summary(user_id: int, month: str) -> Dict[str, float]:
     rows = await cursor.fetchall()
     return {row[0]: row[1] for row in rows}
 
-# Habit tracking queries
+# ==================== HABIT TRACKING ====================
 async def create_habit(user_id: int, name: str, frequency: str = "daily") -> int:
-    cursor = await db.execute_write(
+    await db.execute_write(
         "INSERT INTO habits (user_id, name, frequency) VALUES (?, ?, ?)",
         (user_id, name, frequency)
     )
-    # Get the last inserted ID
     result = await db.execute_read("SELECT last_insert_rowid()")
     row = await result.fetchone()
     return row[0] if row else 0
 
 async def get_user_habits(user_id: int) -> List[Tuple]:
     cursor = await db.execute_read(
-        "SELECT * FROM habits WHERE user_id=? ORDER BY created_at",
-        (user_id,)
+        "SELECT * FROM habits WHERE user_id=? ORDER BY created_at", (user_id,)
     )
     return await cursor.fetchall()
 
-async def log_habit_completion(habit_id: int, completed_date: str):
-    # Check if already logged today
+async def log_habit_completion(habit_id: int, completed_date: str) -> bool:
     existing = await db.execute_read(
-        "SELECT id FROM habit_logs WHERE habit_id=? AND completed_date=?",
-        (habit_id, completed_date)
+        "SELECT id FROM habit_logs WHERE habit_id=? AND completed_date=?", (habit_id, completed_date)
     )
     if await existing.fetchone():
         return False
-    
     await db.execute_write(
-        "INSERT INTO habit_logs (habit_id, completed_date) VALUES (?, ?)",
-        (habit_id, completed_date)
+        "INSERT INTO habit_logs (habit_id, completed_date) VALUES (?, ?)", (habit_id, completed_date)
     )
-    
-    # Update streak
     await db.execute_write(
-        """UPDATE habits 
-           SET streak = streak + 1, last_completed = ?
-           WHERE id = ?""",
+        "UPDATE habits SET streak = streak + 1, last_completed = ? WHERE id = ?",
         (completed_date, habit_id)
     )
     return True
 
 async def reset_habit_streak(habit_id: int):
-    await db.execute_write(
-        "UPDATE habits SET streak = 0 WHERE id = ?",
-        (habit_id,)
-    )
+    await db.execute_write("UPDATE habits SET streak = 0 WHERE id = ?", (habit_id,))
 
 async def get_habit_stats(habit_id: int) -> Dict:
-    cursor = await db.execute_read(
-        "SELECT COUNT(*) FROM habit_logs WHERE habit_id=?",
-        (habit_id,)
+    cursor = await db.execute_read("SELECT COUNT(*) FROM habit_logs WHERE habit_id=?", (habit_id,))
+    total = (await cursor.fetchone())[0]
+    cursor = await db.execute_read("SELECT streak FROM habits WHERE id=?", (habit_id,))
+    streak = (await cursor.fetchone())[0]
+    return {"total_completions": total, "current_streak": streak}
+
+# ==================== BUDGET MANAGEMENT (NEW) ====================
+async def set_budget(user_id: int, category: str, amount: float, period: str = "monthly", start_date: Optional[str] = None):
+    """Set or update a budget for a category."""
+    await db.execute_write(
+        """INSERT INTO budgets (user_id, category, amount, period, start_date) 
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, category, period, COALESCE(start_date, 'static')) 
+           DO UPDATE SET amount=?, updated_at=CURRENT_TIMESTAMP""",
+        (user_id, category, amount, period, start_date, amount)
     )
-    total_completions = (await cursor.fetchone())[0]
-    
+
+async def get_budget(user_id: int, category: str, period: str = "monthly") -> Optional[Tuple]:
+    """Retrieve budget for a specific category and period."""
     cursor = await db.execute_read(
-        "SELECT streak FROM habits WHERE id=?",
-        (habit_id,)
+        "SELECT * FROM budgets WHERE user_id=? AND category=? AND period=?",
+        (user_id, category, period)
     )
-    current_streak = (await cursor.fetchone())[0]
+    return await cursor.fetchone()
+
+async def get_all_budgets(user_id: int, period: str = "monthly") -> List[Tuple]:
+    """Get all active budgets for a user."""
+    cursor = await db.execute_read(
+        "SELECT * FROM budgets WHERE user_id=? AND period=? ORDER BY category",
+        (user_id, period)
+    )
+    return await cursor.fetchall()
+
+async def get_budget_status(user_id: int, period: str = "monthly") -> List[Dict]:
+    """Compare spending vs budget for all categories."""
+    budgets = await get_all_budgets(user_id, period)
+    results = []
     
-    return {"total_completions": total_completions, "current_streak": current_streak}
+    for budget in budgets:
+        bid, uid, cat, amount, per, start, created, updated = budget
+        # Calculate spent amount for this category/period
+        cursor = await db.execute_read(
+            """SELECT COALESCE(SUM(amount), 0) FROM expenses 
+               WHERE user_id=? AND category=? AND strftime('%Y-%m', expense_date) = strftime('%Y-%m', 'now')""",
+            (user_id, cat)
+        )
+        spent = (await cursor.fetchone())[0]
+        remaining = amount - spent
+        results.append({
+            "category": cat,
+            "budgeted": amount,
+            "spent": spent,
+            "remaining": remaining,
+            "percent_used": round((spent / amount) * 100, 1) if amount > 0 else 0
+        })
+    return results
+
+async def update_budget(budget_id: int, amount: float, category: Optional[str] = None):
+    """Update an existing budget."""
+    if category:
+        await db.execute_write(
+            "UPDATE budgets SET amount=?, category=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (amount, category, budget_id)
+        )
+    else:
+        await db.execute_write(
+            "UPDATE budgets SET amount=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (amount, budget_id)
+        )
+
+async def delete_budget(budget_id: int):
+    """Remove a budget entry."""
+    await db.execute_write("DELETE FROM budgets WHERE id=?", (budget_id,))
+
+async def get_budget_alerts(user_id: int, threshold: float = 0.9) -> List[Dict]:
+    """Find budgets where spending exceeds threshold (default 90%)."""
+    statuses = await get_budget_status(user_id)
+    return [s for s in statuses if s["percent_used"] >= threshold * 100]
