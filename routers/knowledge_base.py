@@ -28,7 +28,8 @@ async def cmd_note(message: Message, state: FSMContext):
 @router.message(NoteState.tags)
 async def process_note_tags(message: Message, state: FSMContext):
     data = await state.get_data()
-    tags = validate_tags(message.text.split(",")) if message.text.lower() != "skip" else []
+    # Pass raw text; validator handles splitting
+    tags = validate_tags(message.text) 
     await save_note(message.from_user.id, data["content"], tags)
     await message.answer("Note saved successfully.")
     await state.clear()

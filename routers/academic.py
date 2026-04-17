@@ -29,16 +29,21 @@ async def assign_title(message: Message, state: FSMContext):
 
 @router.message(AssignState.deadline)
 async def assign_deadline(message: Message, state: FSMContext):
+    # Prevent commands from being parsed as dates
+    if message.text.startswith('/'):
+        await message.answer("Please enter a valid date or time, not a command.")
+        return
+
     data = await state.get_data()
     try:
         deadline = dateparser.parse(message.text)
         await add_assignment(message.from_user.id, data["title"], deadline)
         await add_reminder(message.from_user.id, f"Assignment due: {data['title']}", deadline)
         await message.answer("Assignment saved and reminder scheduled.")
+        await state.clear()
     except Exception as e:
-        await message.answer("Invalid date format. Please try again.")
-        logger.error(f"Date parse error: {e}")
-    await state.clear()
+        await message.answer("Invalid date format. Please try again (e.g., Friday 4pm, Nov 15).")
+        logger.warning(f"Date parse error: {e}")
 
 @router.message(Command("assignments"))
 async def cmd_assignments(message: Message):

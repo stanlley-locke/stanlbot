@@ -36,7 +36,7 @@ async def handle_import(message: Message, state: FSMContext):
 async def cmd_find(message: Message):
     query = sanitize_input(message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "")
     if not query:
-        return await message.answer("Usage: /find <query>")
+        return await message.answer("Usage: <code>/find &lt;query&gt;</code>")
     results = await search_whatsapp_messages(message.from_user.id, query)
     if not results:
         return await message.answer("No matches found.")
